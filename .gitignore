@@ -1,0 +1,10 @@
+bin/
+.vscode/
+.DS_Store
+
+# Code coverage profiles and other test artifacts
+coverage.out
+*.out
+coverage.*
+*.coverprofile
+profile.cov
