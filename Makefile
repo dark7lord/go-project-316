@@ -18,4 +18,7 @@ lint-fix:
 fmt:
 	golangci-lint fmt
 
-.PHONY: build test run lint lint-fix fmt
+clean:
+	rm -f $(BIN) coverage*.out
+
+.PHONY: build test run lint lint-fix fmt clean
