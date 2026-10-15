@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ func main() {
 	cmd := newCommand(os.Stdout)
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
 
@@ -71,18 +71,8 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("expected 1 url path, got '%s'", args)
 	}
 
-	rawURL := cmd.Args().Get(0)
-	if !strings.Contains(rawURL, "://") {
-		rawURL = "https://" + strings.TrimPrefix(rawURL, "//")
-	}
-
-	targetURL, err := url.Parse(rawURL)
-	if err != nil {
-		return err
-	}
-
 	opts := crawler.Options{
-		URL:     targetURL.String(),
+		URL:     cmd.Args().Get(0),
 		Depth:   cmd.Uint("depth"),
 		Retries: cmd.Uint("retries"),
 		Delay:   cmd.Duration("delay"),

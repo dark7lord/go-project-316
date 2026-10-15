@@ -4,6 +4,7 @@ package crawler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -38,35 +39,58 @@ type Result struct {
 	Pages       []Page    `json:"pages"`
 }
 
-func report(opts Options) Result {
-	return Result{
-		RootURL:     opts.URL,
-		Depth:       opts.Depth,
-		GeneratedAt: time.Now(),
-	}
+type crawler struct {
+	client  *http.Client
+	visited map[string]bool
 }
 
-// Analyze crawls a website and returns a report about its structure.
-func Analyze(ctx context.Context, opts Options) (data []byte, err error) {
-	result := report(opts)
-	page := Page{URL: opts.URL}
+func (crw *crawler) fetch(url string) (page Page) {
+	page = Page{URL: url}
 
 	defer func() {
 		if r := recover(); r != nil {
 			page.Error = fmt.Sprint("panic: ", r)
-			result.Pages = []Page{page}
-			data, err = json.MarshalIndent(result, "", "  ")
 		}
 	}()
-	_ = ctx
 
-	resp, err := opts.HTTPClient.Get(opts.URL)
+	crw.visited[url] = true
+	resp, err := crw.client.Get(url)
 	if err != nil {
 		page.Error = err.Error()
-	} else {
-		page.Status = resp.StatusCode
-		_ = resp.Body.Close()
+		return page
 	}
+	defer func() { _ = resp.Body.Close() }()
+
+	page.Status = resp.StatusCode
+
+	return page
+}
+
+// Analyze crawls a website and returns a report about its structure.
+func Analyze(ctx context.Context, opts Options) (data []byte, err error) {
+	rootURL, err := normalizeURL(opts.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts.HTTPClient == nil {
+		return nil, errors.New("http client is required")
+	}
+
+	result := Result{
+		RootURL:     rootURL,
+		Depth:       opts.Depth,
+		GeneratedAt: time.Now(),
+	}
+
+	_ = ctx
+
+	crw := crawler{
+		client:  opts.HTTPClient,
+		visited: map[string]bool{},
+	}
+
+	page := crw.fetch(rootURL)
 
 	result.Pages = []Page{page}
 
