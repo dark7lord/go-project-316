@@ -25,10 +25,11 @@ type Options struct {
 
 // Page is a single crawled page in the report.
 type Page struct {
-	URL    string `json:"url"`
-	Depth  uint   `json:"depth"`
-	Status int    `json:"http_status"`
-	Error  string `json:"error,omitempty"`
+	URL        string `json:"url"`
+	Depth      uint   `json:"depth"`
+	HTTPStatus int    `json:"http_status"`
+	Status     string `json:"status"`
+	Error      string `json:"error"`
 }
 
 // Result is the crawl report.
@@ -49,6 +50,7 @@ func (crw *crawler) fetch(url string) (page Page) {
 
 	defer func() {
 		if r := recover(); r != nil {
+			page.Status = "error"
 			page.Error = fmt.Sprint("panic: ", r)
 		}
 	}()
@@ -56,12 +58,15 @@ func (crw *crawler) fetch(url string) (page Page) {
 	crw.visited[url] = true
 	resp, err := crw.client.Get(url)
 	if err != nil {
+		page.Status = "error"
 		page.Error = err.Error()
+
 		return page
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	page.Status = resp.StatusCode
+	page.HTTPStatus = resp.StatusCode
+	page.Status = "ok"
 
 	return page
 }

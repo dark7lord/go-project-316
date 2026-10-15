@@ -67,7 +67,8 @@ func TestAnalyze(t *testing.T) {
 
 			require.Len(t, result.Pages, 1)
 			page := result.Pages[0]
-			require.Equal(t, page.Status, tt.status)
+			require.Equal(t, page.HTTPStatus, tt.status)
+			require.Equal(t, "ok", page.Status)
 			require.Empty(t, page.Error)
 			require.Equal(t, server.URL+tt.path, result.RootURL)
 		})
@@ -90,6 +91,7 @@ func TestAnalyzeNetworkError(t *testing.T) {
 
 	require.Len(t, result.Pages, 1)
 	page := result.Pages[0]
-	require.Zero(t, page.Status)
+	require.Zero(t, page.HTTPStatus)
+	require.Equal(t, "error", page.Status)
 	require.NotEmpty(t, page.Error)
 }
