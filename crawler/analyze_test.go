@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,10 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		switch r.URL.Path {
 		case "/":
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("main route"))
+		case "/server-error":
+			w.WriteHeader(http.StatusInternalServerError)
+		case "/slow":
+			time.Sleep(200 * time.Millisecond)
 		default:
 			http.NotFound(w, r)
 		}
@@ -33,21 +37,28 @@ func TestAnalyze(t *testing.T) {
 	server := setupTestServer(t)
 
 	tests := []struct {
-		name    string
-		path    string
-		status  int
-		wantErr bool
+		name       string
+		path       string
+		statusCode int
+		statusText string
 	}{
 		{
-			name:   "success",
-			path:   "/",
-			status: http.StatusOK,
+			name:       "success",
+			path:       "/",
+			statusCode: http.StatusOK,
+			statusText: "ok",
 		},
 		{
-			name:    "not found",
-			path:    "/missing",
-			status:  http.StatusNotFound,
-			wantErr: true,
+			name:       "not found",
+			path:       "/missing",
+			statusCode: http.StatusNotFound,
+			statusText: "error",
+		},
+		{
+			name:       "server error",
+			path:       "/server-error",
+			statusCode: http.StatusInternalServerError,
+			statusText: "error",
 		},
 	}
 
@@ -67,8 +78,8 @@ func TestAnalyze(t *testing.T) {
 
 			require.Len(t, result.Pages, 1)
 			page := result.Pages[0]
-			require.Equal(t, page.HTTPStatus, tt.status)
-			require.Equal(t, "ok", page.Status)
+			require.Equal(t, tt.statusCode, page.HTTPStatus)
+			require.Equal(t, tt.statusText, page.Status)
 			require.Empty(t, page.Error)
 			require.Equal(t, server.URL+tt.path, result.RootURL)
 		})
@@ -94,4 +105,25 @@ func TestAnalyzeNetworkError(t *testing.T) {
 	require.Zero(t, page.HTTPStatus)
 	require.Equal(t, "error", page.Status)
 	require.NotEmpty(t, page.Error)
+}
+
+func TestAnalyzeTimeout(t *testing.T) {
+	server := setupTestServer(t)
+	client := server.Client()
+	url := server.URL + "/slow"
+	client.Timeout = 50 * time.Millisecond
+	ctx := context.Background()
+
+	data, err := Analyze(ctx, Options{URL: url, HTTPClient: client})
+	require.NoError(t, err)
+	var result Result
+	errJSON := json.Unmarshal(data, &result)
+	require.NoError(t, errJSON)
+
+	require.Len(t, result.Pages, 1)
+	page := result.Pages[0]
+	require.Equal(t, "error", page.Status)
+	require.NotEmpty(t, page.Error)
+	require.Zero(t, page.HTTPStatus)
+	require.Contains(t, page.Error, "Client.Timeout")
 }

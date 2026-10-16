@@ -45,12 +45,17 @@ type crawler struct {
 	visited map[string]bool
 }
 
+const (
+	statusOK    = "ok"
+	statusError = "error"
+)
+
 func (crw *crawler) fetch(url string) (page Page) {
 	page = Page{URL: url}
 
 	defer func() {
 		if r := recover(); r != nil {
-			page.Status = "error"
+			page.Status = statusError
 			page.Error = fmt.Sprint("panic: ", r)
 		}
 	}()
@@ -58,7 +63,7 @@ func (crw *crawler) fetch(url string) (page Page) {
 	crw.visited[url] = true
 	resp, err := crw.client.Get(url)
 	if err != nil {
-		page.Status = "error"
+		page.Status = statusError
 		page.Error = err.Error()
 
 		return page
@@ -66,7 +71,10 @@ func (crw *crawler) fetch(url string) (page Page) {
 	defer func() { _ = resp.Body.Close() }()
 
 	page.HTTPStatus = resp.StatusCode
-	page.Status = "ok"
+	page.Status = statusOK
+	if resp.StatusCode >= 400 {
+		page.Status = statusError
+	}
 
 	return page
 }
