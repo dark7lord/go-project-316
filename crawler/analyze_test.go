@@ -1,4 +1,4 @@
-package crawler
+package crawler_test
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"code/crawler"
 )
 
 func setupTestServer(t *testing.T) *httptest.Server {
@@ -65,14 +67,14 @@ func TestAnalyze(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			opts := Options{
+			opts := crawler.Options{
 				URL:        server.URL + tt.path,
 				HTTPClient: server.Client(),
 			}
-			data, err := Analyze(ctx, opts)
+			data, err := crawler.Analyze(ctx, opts)
 			require.NoError(t, err)
 
-			var result Result
+			var result crawler.Result
 			errJSON := json.Unmarshal(data, &result)
 			require.NoError(t, errJSON)
 
@@ -93,10 +95,10 @@ func TestAnalyzeNetworkError(t *testing.T) {
 	server.Close()
 	ctx := context.Background()
 
-	data, err := Analyze(ctx, Options{URL: url, HTTPClient: client})
+	data, err := crawler.Analyze(ctx, crawler.Options{URL: url, HTTPClient: client})
 	require.NoError(t, err)
 
-	var result Result
+	var result crawler.Result
 	errJSON := json.Unmarshal(data, &result)
 	require.NoError(t, errJSON)
 
@@ -114,9 +116,9 @@ func TestAnalyzeTimeout(t *testing.T) {
 	client.Timeout = 50 * time.Millisecond
 	ctx := context.Background()
 
-	data, err := Analyze(ctx, Options{URL: url, HTTPClient: client})
+	data, err := crawler.Analyze(ctx, crawler.Options{URL: url, HTTPClient: client})
 	require.NoError(t, err)
-	var result Result
+	var result crawler.Result
 	errJSON := json.Unmarshal(data, &result)
 	require.NoError(t, errJSON)
 

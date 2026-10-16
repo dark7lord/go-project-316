@@ -11,6 +11,7 @@ make build                          # build binary into bin/hexlet-go-crawler
 make test                           # run tests with coverage (coverage.out)
 make run URL=https://example.com    # crawl a site and print JSON report
 make lint                           # run golangci-lint
+make check                          # run tests and linter
 ```
 
 Example output:
