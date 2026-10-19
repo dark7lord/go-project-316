@@ -61,7 +61,7 @@ func flags() []cli.Flag {
 }
 
 func run(ctx context.Context, cmd *cli.Command) error {
-	if cmd.NArg() == 0 {
+	if cmd.NArg() == 0 || cmd.Args().Get(0) == "" {
 		return cli.ShowRootCommandHelp(cmd)
 	}
 
@@ -77,10 +77,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		Retries: cmd.Uint("retries"),
 		Delay:   cmd.Duration("delay"),
 		Timeout: cmd.Duration("timeout"),
-		// TODO: RPS? indentsJSON?
+		// TODO: RPS?
 		UserAgent:   cmd.String("user-agent"),
 		Concurrency: cmd.Uint("workers"),
 		HTTPClient:  &http.Client{Timeout: cmd.Duration("timeout")},
+		IndentJSON:  4, // TODO: в тз ничего не сказано про флаг, пока так
 	}
 
 	data, errAnalyze := crawler.Analyze(ctx, opts)

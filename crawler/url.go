@@ -10,9 +10,8 @@ import (
 // ErrInvalidURL is returned when the url can't be crawled.
 var ErrInvalidURL = errors.New("invalid url")
 
-// normalizeURL trims the url, adds http:// when the scheme is missing
-// and checks that it is an http(s) url with a host.
-func normalizeURL(raw string) (string, error) {
+// normalizeURL adds http:// if needed and validates an http(s) url.
+func normalizeURL(raw string) (url.URL, error) {
 	raw = strings.TrimSpace(raw)
 	if !strings.Contains(raw, "://") {
 		raw = "http://" + raw
@@ -20,12 +19,37 @@ func normalizeURL(raw string) (string, error) {
 
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		return url.URL{}, fmt.Errorf("%w: %v", ErrInvalidURL, err)
 	}
 
 	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return "", fmt.Errorf("%w: %q", ErrInvalidURL, raw)
+		return url.URL{}, fmt.Errorf("%w: %q", ErrInvalidURL, raw)
 	}
 
-	return u.String(), nil
+	return *u, nil
+}
+
+// resolveLink makes href absolute against base, false means skip it.
+func resolveLink(base *url.URL, href string) (string, bool) {
+	trimmed := strings.TrimSpace(href)
+	if trimmed == "" {
+		return "", false
+	}
+
+	if strings.HasPrefix(trimmed, "#") {
+		return "", false
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return "", false
+	}
+
+	u := base.ResolveReference(parsed)
+
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", false
+	}
+
+	return u.String(), true
 }

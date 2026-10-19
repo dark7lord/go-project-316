@@ -18,9 +18,18 @@ lint-fix:
 fmt:
 	golangci-lint fmt
 
+cover:
+	go tool cover -func=coverage.out
+
+cover-html:
+	go tool cover -html=coverage.out
+
 check: test lint
 
 clean:
 	rm -f $(BIN) coverage*.out
 
-.PHONY: build test run lint lint-fix fmt check clean 
+dev-server:
+	python3 -m http.server 7070 -d crawler/testdata
+
+.PHONY: build test run lint lint-fix fmt check clean cover cover-html dev-server
