@@ -16,7 +16,7 @@ type SEOResult struct {
 }
 
 func extractSEO(doc *goquery.Document) SEOResult {
-	title := doc.Find("title").First()
+	title := doc.Find("head > title").First()
 	desc := doc.Find(`meta[name="description"]`).First()
 	content, _ := desc.Attr("content")
 

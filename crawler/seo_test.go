@@ -59,6 +59,11 @@ func TestExtractSEO(t *testing.T) {
 				Description:    "Use <h1> once",
 			},
 		},
+		{
+			name: "svg title is not page title",
+			file: "testdata/svg-title.html",
+			want: SEOResult{HasH1: true},
+		},
 	}
 
 	for _, tt := range tests {
