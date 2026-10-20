@@ -15,6 +15,7 @@ type Page struct {
 	Error        string    `json:"error"`
 	BrokenLinks  []Link    `json:"broken_links,omitempty"`
 	DiscoveredAt time.Time `json:"discovered_at"`
+	SEO          SEOResult `json:"seo"`
 }
 
 // Link is a link found on a page and its check result.

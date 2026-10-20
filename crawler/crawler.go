@@ -2,7 +2,6 @@ package crawler
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -40,12 +39,7 @@ func extractLink(n *html.Node) (string, bool) {
 	return n.Attr[index].Val, true
 }
 
-func extractLinks(r io.Reader) ([]string, error) {
-	doc, err := html.Parse(r)
-	if err != nil {
-		return nil, err
-	}
-
+func extractLinks(doc *html.Node) []string {
 	var links []string
 
 	for node := range doc.Descendants() {
@@ -55,7 +49,7 @@ func extractLinks(r io.Reader) ([]string, error) {
 		}
 	}
 
-	return links, nil
+	return links
 }
 
 func (crw *crawler) checkLink(absURL string) (Link, bool) {
@@ -110,7 +104,6 @@ func (crw *crawler) fetchPage(url string) (page Page) {
 	if err != nil {
 		page.Status = statusError
 		page.Error = err.Error()
-
 		return page
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -122,11 +115,13 @@ func (crw *crawler) fetchPage(url string) (page Page) {
 		return page
 	}
 
-	links, err := extractLinks(resp.Body)
+	doc, err := html.Parse(resp.Body)
 	if err != nil {
 		page.Error = err.Error()
 		return page
 	}
+	links := extractLinks(doc)
+	page.SEO = extractSEO(doc)
 
 	pageURL := resp.Request.URL
 	page.BrokenLinks = crw.checkLinks(links, pageURL)
