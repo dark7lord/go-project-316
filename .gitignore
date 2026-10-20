@@ -8,3 +8,5 @@ coverage.out
 coverage.*
 *.coverprofile
 profile.cov
+__debug_bin*
+
