@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/html"
 )
 
 func TestExtractSEO(t *testing.T) {
@@ -31,9 +31,13 @@ func TestExtractSEO(t *testing.T) {
 			want: SEOResult{},
 		},
 		{
-			name: "empty title",
-			file: "testdata/empty-title.html",
-			want: SEOResult{HasH1: true},
+			name: "empty tags",
+			file: "testdata/empty-tags.html",
+			want: SEOResult{
+				HasTitle:       true,
+				HasDescription: true,
+				HasH1:          true,
+			},
 		},
 		{
 			name: "spaces are trimmed",
@@ -46,9 +50,14 @@ func TestExtractSEO(t *testing.T) {
 			},
 		},
 		{
-			name: "whitespace only is empty",
-			file: "testdata/blank-seo.html",
-			want: SEOResult{},
+			name: "decoding html entities",
+			file: "testdata/entities-seo.html",
+			want: SEOResult{
+				HasTitle:       true,
+				Title:          "Tom & Jerry",
+				HasDescription: true,
+				Description:    "Use <h1> once",
+			},
 		},
 	}
 
@@ -58,7 +67,7 @@ func TestExtractSEO(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = f.Close() })
 
-			doc, err := html.Parse(f)
+			doc, err := goquery.NewDocumentFromReader(f)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.want, extractSEO(doc))

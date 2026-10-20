@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"slices"
 	"time"
 
-	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
+	"github.com/PuerkitoBio/goquery"
 )
 
 type crawler struct {
@@ -23,33 +21,10 @@ const (
 	statusError = "error"
 )
 
-func extractLink(n *html.Node) (string, bool) {
-	if n.Type != html.ElementNode || n.DataAtom != atom.A {
-		return "", false
-	}
-
-	index := slices.IndexFunc(n.Attr, func(attr html.Attribute) bool {
-		return attr.Key == "href"
+func extractLinks(doc *goquery.Document) []string {
+	return doc.Find("a[href]").Map(func(_ int, s *goquery.Selection) string {
+		return s.AttrOr("href", "")
 	})
-
-	if index < 0 {
-		return "", false
-	}
-
-	return n.Attr[index].Val, true
-}
-
-func extractLinks(doc *html.Node) []string {
-	var links []string
-
-	for node := range doc.Descendants() {
-		link, ok := extractLink(node)
-		if ok {
-			links = append(links, link)
-		}
-	}
-
-	return links
 }
 
 func (crw *crawler) checkLink(absURL string) (Link, bool) {
@@ -115,14 +90,13 @@ func (crw *crawler) fetchPage(url string) (page Page) {
 		return page
 	}
 
-	doc, err := html.Parse(resp.Body)
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
 		page.Error = err.Error()
 		return page
 	}
 	links := extractLinks(doc)
 	page.SEO = extractSEO(doc)
-
 	pageURL := resp.Request.URL
 	page.BrokenLinks = crw.checkLinks(links, pageURL)
 
