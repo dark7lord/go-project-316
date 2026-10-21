@@ -1,10 +1,10 @@
 package crawler_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -39,7 +39,7 @@ func setupTestServer(t *testing.T) *httptest.Server {
 func firstPage(t *testing.T, opts crawler.Options) crawler.Page {
 	t.Helper()
 
-	data, err := crawler.Analyze(context.Background(), opts)
+	data, err := crawler.Analyze(t.Context(), opts)
 	require.NoError(t, err)
 
 	var report crawler.Report
@@ -47,4 +47,25 @@ func firstPage(t *testing.T, opts crawler.Options) crawler.Page {
 	require.Len(t, report.Pages, 1)
 
 	return report.Pages[0]
+}
+
+func pageDepths(t *testing.T, opts crawler.Options) map[string]uint {
+	t.Helper()
+
+	data, err := crawler.Analyze(t.Context(), opts)
+	require.NoError(t, err)
+
+	var report crawler.Report
+	require.NoError(t, json.Unmarshal(data, &report))
+
+	result := map[string]uint{}
+
+	for _, page := range report.Pages {
+		u, err := url.Parse(page.URL)
+		require.NoError(t, err)
+
+		result[u.Path] = page.Depth
+	}
+
+	return result
 }

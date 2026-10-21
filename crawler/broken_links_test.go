@@ -12,7 +12,10 @@ import (
 func TestBrokenLinks(t *testing.T) {
 	server := setupTestServer(t)
 
-	page := firstPage(t, crawler.Options{URL: server.URL + "/", HTTPClient: server.Client()})
+	page := firstPage(t, crawler.Options{
+		URL:        server.URL + "/",
+		HTTPClient: server.Client(),
+	})
 
 	want := []crawler.Link{{
 		URL:        server.URL + "/not-found",
