@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+const (
+	statusOK    = "ok"
+	statusError = "error"
+)
+
 // Page is a single crawled page in the report.
 type Page struct {
 	URL          string    `json:"url"`
