@@ -11,7 +11,8 @@ import (
 
 type crawler struct {
 	client  *http.Client
-	rootURL url.URL
+	rootURL *url.URL
+	depth   uint
 	visited map[string]bool
 	pages   []Page
 }
@@ -27,43 +28,50 @@ func extractLinks(doc *goquery.Document) []string {
 	})
 }
 
-func (crw *crawler) checkLink(absURL string) (Link, bool) {
-	resp, err := crw.client.Get(absURL)
+func (crw *crawler) checkLink(absURL *url.URL) (Link, bool) {
+	resp, err := crw.client.Get(absURL.String())
 	if err != nil {
-		return Link{URL: absURL, Error: err.Error()}, true
+		return Link{URL: absURL.String(), Error: err.Error()}, true
 	}
 	_ = resp.Body.Close()
 
 	if code := resp.StatusCode; code >= 400 {
-		return Link{URL: absURL, StatusCode: code}, true
+		return Link{URL: absURL.String(), StatusCode: code}, true
 	}
 
 	return Link{}, false
 }
 
-func (crw *crawler) checkLinks(links []string, pageURL *url.URL) []Link {
+func (crw *crawler) checkLinks(hrefs []string, pageURL *url.URL) []Link {
 	var brokenLinks []Link
 
 	checked := map[string]bool{}
 
-	for _, link := range links {
-		absURL, ok := resolveLink(pageURL, link)
-		if !ok || checked[absURL] {
+	for _, href := range hrefs {
+		absURL, ok := resolveURL(pageURL, href)
+		if !ok {
 			continue
 		}
-		checked[absURL] = true
 
-		if href, broken := crw.checkLink(absURL); broken {
-			brokenLinks = append(brokenLinks, href)
+		key := absURL.String()
+		if checked[key] {
+			continue
+		}
+
+		checked[key] = true
+
+		if link, broken := crw.checkLink(absURL); broken {
+			brokenLinks = append(brokenLinks, link)
 		}
 	}
 
 	return brokenLinks
 }
 
-func (crw *crawler) fetchPage(url string) (page Page) {
+func (crw *crawler) fetchPage(pageURL *url.URL) (page Page) {
+	strURL := pageURL.String()
 	page = Page{
-		URL:          url,
+		URL:          strURL,
 		DiscoveredAt: time.Now().UTC(),
 	}
 
@@ -74,8 +82,8 @@ func (crw *crawler) fetchPage(url string) (page Page) {
 		}
 	}()
 
-	crw.visited[url] = true
-	resp, err := crw.client.Get(url)
+	crw.visited[strURL] = true
+	resp, err := crw.client.Get(strURL)
 	if err != nil {
 		page.Status = statusError
 		page.Error = err.Error()
@@ -97,8 +105,8 @@ func (crw *crawler) fetchPage(url string) (page Page) {
 	}
 	links := extractLinks(doc)
 	page.SEO = extractSEO(doc)
-	pageURL := resp.Request.URL
-	page.BrokenLinks = crw.checkLinks(links, pageURL)
+	reqURL := resp.Request.URL
+	page.BrokenLinks = crw.checkLinks(links, reqURL)
 
 	return page
 }

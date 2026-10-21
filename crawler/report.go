@@ -33,14 +33,12 @@ type Report struct {
 	Pages       []Page    `json:"pages"`
 }
 
-func report(crw crawler, depth uint, indentJSON uint) (data []byte, err error) {
-	// TODO: что же делать с глубиной и как понять что это корень?
-
+func report(crw crawler, indentJSON uint) (data []byte, err error) {
 	result := Report{
 		RootURL:     crw.rootURL.String(),
-		Depth:       depth,
-		GeneratedAt: time.Now().UTC(),
+		Depth:       crw.depth,
 		Pages:       crw.pages,
+		GeneratedAt: time.Now().UTC(),
 	}
 
 	indent := strings.Repeat(" ", int(indentJSON))

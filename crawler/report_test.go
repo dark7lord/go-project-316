@@ -16,17 +16,20 @@ func newTestCrawler(t *testing.T) crawler {
 	require.NoError(t, err)
 
 	return crawler{
-		rootURL: *root,
-		pages: []Page{
-			{URL: "http://simple.test/blog", HTTPStatus: 200, Status: statusOK},
-		},
+		rootURL: root,
+		depth:   3,
+		pages: []Page{{
+			URL:        "http://simple.test/blog",
+			HTTPStatus: 200,
+			Status:     statusOK,
+		}},
 	}
 }
 
 func TestReport(t *testing.T) {
 	crw := newTestCrawler(t)
 
-	data, err := report(crw, 3, 2)
+	data, err := report(crw, 2)
 	require.NoError(t, err)
 
 	var got Report

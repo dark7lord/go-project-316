@@ -11,7 +11,7 @@ import (
 var ErrInvalidURL = errors.New("invalid url")
 
 // normalizeURL adds http:// if needed and validates an http(s) url.
-func normalizeURL(raw string) (url.URL, error) {
+func normalizeURL(raw string) (*url.URL, error) {
 	raw = strings.TrimSpace(raw)
 	if !strings.Contains(raw, "://") {
 		raw = "http://" + raw
@@ -19,37 +19,37 @@ func normalizeURL(raw string) (url.URL, error) {
 
 	u, err := url.Parse(raw)
 	if err != nil {
-		return url.URL{}, fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
 	}
 
 	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return url.URL{}, fmt.Errorf("%w: %q", ErrInvalidURL, raw)
+		return nil, fmt.Errorf("%w: %q", ErrInvalidURL, raw)
 	}
 
-	return *u, nil
+	return u, nil
 }
 
-// resolveLink makes href absolute against base, false means skip it.
-func resolveLink(base *url.URL, href string) (string, bool) {
+// resolveURL makes href absolute against base, false means skip it.
+func resolveURL(base *url.URL, href string) (*url.URL, bool) {
 	trimmed := strings.TrimSpace(href)
 	if trimmed == "" {
-		return "", false
+		return nil, false
 	}
 
 	if strings.HasPrefix(trimmed, "#") {
-		return "", false
+		return nil, false
 	}
 
 	parsed, err := url.Parse(trimmed)
 	if err != nil {
-		return "", false
+		return nil, false
 	}
 
 	u := base.ResolveReference(parsed)
 
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", false
+		return nil, false
 	}
 
-	return u.String(), true
+	return u, true
 }

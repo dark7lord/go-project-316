@@ -37,11 +37,12 @@ func Analyze(ctx context.Context, opts Options) (data []byte, err error) {
 	crw := crawler{
 		rootURL: normURL,
 		client:  opts.HTTPClient,
+		depth:   opts.Depth,
 		visited: map[string]bool{},
 	}
 
-	page := crw.fetchPage(normURL.String())
+	page := crw.fetchPage(normURL)
 	crw.pages = append(crw.pages, page)
 
-	return report(crw, opts.Depth, opts.IndentJSON)
+	return report(crw, opts.IndentJSON)
 }
