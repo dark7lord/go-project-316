@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestCrawler(t *testing.T) crawler {
+func newTestCrawler(t *testing.T) *crawler {
 	t.Helper()
 
 	root, err := url.Parse("http://simple.test/blog")
 	require.NoError(t, err)
 
-	return crawler{
+	return &crawler{
 		rootURL: root,
 		depth:   3,
 		pages: []Page{{
@@ -29,7 +29,7 @@ func newTestCrawler(t *testing.T) crawler {
 func TestReport(t *testing.T) {
 	crw := newTestCrawler(t)
 
-	data, err := report(crw, 2)
+	data, err := crw.report()
 	require.NoError(t, err)
 
 	var got Report

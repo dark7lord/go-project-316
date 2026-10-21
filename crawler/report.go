@@ -33,7 +33,7 @@ type Report struct {
 	Pages       []Page    `json:"pages"`
 }
 
-func report(crw crawler, indentJSON uint) (data []byte, err error) {
+func (crw *crawler) report() (data []byte, err error) {
 	result := Report{
 		RootURL:     crw.rootURL.String(),
 		Depth:       crw.depth,
@@ -41,7 +41,7 @@ func report(crw crawler, indentJSON uint) (data []byte, err error) {
 		GeneratedAt: time.Now().UTC(),
 	}
 
-	indent := strings.Repeat(" ", int(indentJSON))
+	indent := strings.Repeat(" ", int(crw.indentJSON))
 
 	return json.MarshalIndent(result, "", indent)
 }

@@ -3,7 +3,6 @@ package crawler
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"time"
 )
@@ -23,26 +22,15 @@ type Options struct {
 
 // Analyze crawls a website and returns a report about its structure.
 func Analyze(ctx context.Context, opts Options) (data []byte, err error) {
-	if opts.HTTPClient == nil {
-		return nil, errors.New("http client is required")
-	}
+	_ = ctx
 
-	normURL, err := normalizeURL(opts.URL)
+	crw, err := newCrawler(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	_ = ctx
-
-	crw := crawler{
-		rootURL: normURL,
-		client:  opts.HTTPClient,
-		depth:   opts.Depth,
-		visited: map[string]bool{},
-	}
-
-	page := crw.fetchPage(normURL)
+	page := crw.fetchPage(crw.rootURL)
 	crw.pages = append(crw.pages, page)
 
-	return report(crw, opts.IndentJSON)
+	return crw.report()
 }

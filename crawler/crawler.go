@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -9,18 +10,38 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-type crawler struct {
-	client  *http.Client
-	rootURL *url.URL
-	depth   uint
-	visited map[string]bool
-	pages   []Page
-}
-
 const (
 	statusOK    = "ok"
 	statusError = "error"
 )
+
+type crawler struct {
+	client     *http.Client
+	rootURL    *url.URL
+	depth      uint
+	visited    map[string]bool
+	pages      []Page
+	indentJSON uint
+}
+
+func newCrawler(opts Options) (*crawler, error) {
+	if opts.HTTPClient == nil {
+		return nil, errors.New("http client is required")
+	}
+
+	normURL, err := normalizeURL(opts.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	return &crawler{
+		rootURL:    normURL,
+		client:     opts.HTTPClient,
+		depth:      opts.Depth,
+		indentJSON: opts.IndentJSON,
+		visited:    map[string]bool{},
+	}, nil
+}
 
 func extractLinks(doc *goquery.Document) []string {
 	return doc.Find("a[href]").Map(func(_ int, s *goquery.Selection) string {
