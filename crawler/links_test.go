@@ -17,7 +17,7 @@ func TestBrokenLinks(t *testing.T) {
 		HTTPClient: server.Client(),
 	})
 
-	want := []crawler.Link{{
+	want := []crawler.BrokenLink{{
 		URL:        server.URL + "/not-found",
 		StatusCode: http.StatusNotFound,
 	}}

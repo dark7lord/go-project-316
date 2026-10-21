@@ -13,18 +13,18 @@ const (
 
 // Page is a single crawled page in the report.
 type Page struct {
-	URL          string    `json:"url"`
-	Depth        uint      `json:"depth"`
-	HTTPStatus   int       `json:"http_status"`
-	Status       string    `json:"status"`
-	Error        string    `json:"error"`
-	BrokenLinks  []Link    `json:"broken_links,omitempty"`
-	DiscoveredAt time.Time `json:"discovered_at"`
-	SEO          SEOResult `json:"seo"`
+	URL          string       `json:"url"`
+	Depth        uint         `json:"depth"`
+	HTTPStatus   int          `json:"http_status"`
+	Status       string       `json:"status"`
+	Error        string       `json:"error"`
+	BrokenLinks  []BrokenLink `json:"broken_links,omitempty"`
+	DiscoveredAt time.Time    `json:"discovered_at"`
+	SEO          SEOResult    `json:"seo"`
 }
 
-// Link is a link found on a page and its check result.
-type Link struct {
+// BrokenLink is a link found on a page and its check result.
+type BrokenLink struct {
 	URL        string `json:"url"`
 	StatusCode int    `json:"status_code,omitempty"`
 	Error      string `json:"error,omitempty"`

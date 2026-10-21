@@ -29,8 +29,7 @@ func Analyze(ctx context.Context, opts Options) (data []byte, err error) {
 		return nil, err
 	}
 
-	page := crw.fetchPage(crw.rootURL)
-	crw.pages = append(crw.pages, page)
+	crw.crawl()
 
 	return crw.report()
 }

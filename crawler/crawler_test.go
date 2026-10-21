@@ -9,7 +9,6 @@ import (
 )
 
 func TestCrawlDepth(t *testing.T) {
-	t.Skip("crawl not implemented")
 	server := setupTestServer(t)
 
 	tests := []struct {
