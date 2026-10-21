@@ -16,7 +16,7 @@ func TestExtractSEO(t *testing.T) {
 	}{
 		{
 			name: "good seo",
-			file: "testdata/good-seo.html",
+			file: "testdata/seo/good.html",
 			want: SEOResult{
 				HasTitle:       true,
 				Title:          "Good SEO",
@@ -27,12 +27,12 @@ func TestExtractSEO(t *testing.T) {
 		},
 		{
 			name: "bad seo",
-			file: "testdata/bad-seo.html",
+			file: "testdata/seo/bad.html",
 			want: SEOResult{},
 		},
 		{
 			name: "empty tags",
-			file: "testdata/empty-tags.html",
+			file: "testdata/seo/empty-tags.html",
 			want: SEOResult{
 				HasTitle:       true,
 				HasDescription: true,
@@ -41,7 +41,7 @@ func TestExtractSEO(t *testing.T) {
 		},
 		{
 			name: "spaces are trimmed",
-			file: "testdata/spaced-seo.html",
+			file: "testdata/seo/spaced.html",
 			want: SEOResult{
 				HasTitle:       true,
 				Title:          "Spaced title",
@@ -51,7 +51,7 @@ func TestExtractSEO(t *testing.T) {
 		},
 		{
 			name: "decoding html entities",
-			file: "testdata/entities-seo.html",
+			file: "testdata/seo/entities.html",
 			want: SEOResult{
 				HasTitle:       true,
 				Title:          "Tom & Jerry",
@@ -61,7 +61,7 @@ func TestExtractSEO(t *testing.T) {
 		},
 		{
 			name: "svg title is not page title",
-			file: "testdata/svg-title.html",
+			file: "testdata/seo/svg-title.html",
 			want: SEOResult{HasH1: true},
 		},
 	}
