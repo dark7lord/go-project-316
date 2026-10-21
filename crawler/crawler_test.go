@@ -8,7 +8,7 @@ import (
 	"code/crawler"
 )
 
-func TestAnalyzeDepth(t *testing.T) {
+func TestCrawlDepth(t *testing.T) {
 	t.Skip("crawl not implemented")
 	server := setupTestServer(t)
 

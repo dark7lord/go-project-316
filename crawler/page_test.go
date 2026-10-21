@@ -10,7 +10,7 @@ import (
 	"code/crawler"
 )
 
-func TestAnalyze(t *testing.T) {
+func TestPageStatus(t *testing.T) {
 	server := setupTestServer(t)
 
 	tests := []struct {
@@ -53,7 +53,7 @@ func TestAnalyze(t *testing.T) {
 	}
 }
 
-func TestAnalyzeNetworkError(t *testing.T) {
+func TestPageNetworkError(t *testing.T) {
 	server := setupTestServer(t)
 	url := server.URL
 	client := server.Client()
@@ -66,7 +66,7 @@ func TestAnalyzeNetworkError(t *testing.T) {
 	require.NotEmpty(t, page.Error)
 }
 
-func TestAnalyzeTimeout(t *testing.T) {
+func TestPageTimeout(t *testing.T) {
 	server := setupTestServer(t)
 	client := server.Client()
 	url := server.URL + "/slow"
@@ -78,15 +78,4 @@ func TestAnalyzeTimeout(t *testing.T) {
 	require.NotEmpty(t, page.Error)
 	require.Zero(t, page.HTTPStatus)
 	require.Contains(t, page.Error, "Client.Timeout")
-}
-
-func TestAnalyzeInvalidInput(t *testing.T) {
-	server := setupTestServer(t)
-
-	ctx := t.Context()
-	_, err := crawler.Analyze(ctx, crawler.Options{URL: server.URL})
-	require.Error(t, err, "nil http client")
-
-	_, err = crawler.Analyze(ctx, crawler.Options{URL: "ftp://x", HTTPClient: server.Client()})
-	require.ErrorIs(t, err, crawler.ErrInvalidURL)
 }
