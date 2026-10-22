@@ -14,6 +14,25 @@ make lint                           # run golangci-lint
 make check                          # run tests and linter
 ```
 
+## Crawl depth
+
+Depth is the number of link hops from the start URL:
+
+- the start page has `depth: 0`;
+- pages it links to have `depth: 1`, their links `depth: 2`, and so on.
+
+The crawler visits pages while their depth is not greater than `--depth`
+(default `10`). With `--depth 0` only the start page is checked, with
+`--depth 1` the start page and the pages it links to.
+
+Only pages on the same host as the start URL are crawled. Links to other
+hosts are checked as possibly broken but never crawled. Each page appears
+in the report once.
+
+```bash
+go run ./cmd/hexlet-go-crawler --depth 2 https://example.com
+```
+
 Example output:
 
 ```json

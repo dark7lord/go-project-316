@@ -63,6 +63,7 @@ func pageDepths(t *testing.T, opts crawler.Options) map[string]uint {
 	for _, page := range report.Pages {
 		u, err := url.Parse(page.URL)
 		require.NoError(t, err)
+		require.NotContains(t, result, u.Path, "page appears twice in report")
 
 		result[u.Path] = page.Depth
 	}
