@@ -4,12 +4,21 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"code/internal/app"
 )
 
 func main() {
-	ctx := context.Background()
-	codeExit := app.Run(ctx, os.Args, os.Stdout, os.Stderr)
-	os.Exit(codeExit)
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+
+	code := app.Run(ctx, os.Args, os.Stdout, os.Stderr)
+
+	stop()
+	os.Exit(code)
 }

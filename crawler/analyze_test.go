@@ -1,6 +1,8 @@
 package crawler_test
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,4 +19,19 @@ func TestAnalyzeInvalidInput(t *testing.T) {
 
 	_, err = crawler.Analyze(ctx, crawler.Options{URL: "ftp://x", HTTPClient: server.Client()})
 	require.ErrorIs(t, err, crawler.ErrInvalidURL)
+}
+
+func TestAnalyzeCanceledContext(t *testing.T) {
+	server := setupTestServer(t)
+
+	canceledCtx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	opts := crawler.Options{URL: server.URL, HTTPClient: server.Client()}
+	data, err := crawler.Analyze(canceledCtx, opts)
+	require.NoError(t, err)
+
+	var report crawler.Report
+	require.NoError(t, json.Unmarshal(data, &report))
+	require.Empty(t, report.Pages)
 }

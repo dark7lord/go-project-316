@@ -1,6 +1,8 @@
 package crawler_test
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -78,4 +80,21 @@ func TestPageTimeout(t *testing.T) {
 	require.NotEmpty(t, page.Error)
 	require.Zero(t, page.HTTPStatus)
 	require.Contains(t, page.Error, "Client.Timeout")
+}
+
+func TestPageContextCanceled(t *testing.T) {
+	server, ctx := newCancelServer(t)
+
+	opts := crawler.Options{
+		URL:        server.URL + "/cancel",
+		HTTPClient: server.Client(),
+	}
+
+	data, err := crawler.Analyze(ctx, opts)
+	require.NoError(t, err)
+
+	var report crawler.Report
+	require.NoError(t, json.Unmarshal(data, &report))
+	require.Empty(t, report.Pages)
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
 }

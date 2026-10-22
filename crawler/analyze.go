@@ -22,14 +22,12 @@ type Options struct {
 
 // Analyze crawls a website and returns a report about its structure.
 func Analyze(ctx context.Context, opts Options) (data []byte, err error) {
-	_ = ctx
-
 	crw, err := newCrawler(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	crw.crawl()
+	crw.crawl(ctx)
 
 	return crw.report()
 }

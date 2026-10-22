@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -33,13 +34,18 @@ func newCrawler(opts Options) (*crawler, error) {
 		depth:      opts.Depth,
 		indentJSON: opts.IndentJSON,
 		visited:    map[string]bool{},
+		pages:      []Page{},
 	}, nil
 }
 
-func (crw *crawler) crawl() {
+func (crw *crawler) crawl(ctx context.Context) {
 	queue := []foundURL{{URL: crw.rootURL, depth: 0}}
 
 	for len(queue) > 0 {
+		if ctx.Err() != nil {
+			break
+		}
+
 		curr := queue[0]
 		queue = queue[1:]
 
@@ -49,7 +55,10 @@ func (crw *crawler) crawl() {
 		}
 
 		crw.visited[strURL] = true
-		page, nextLinks := crw.fetchPage(curr.URL, curr.depth)
+		page, nextLinks, ok := crw.fetchPage(ctx, curr.URL, curr.depth)
+		if !ok {
+			break
+		}
 		crw.pages = append(crw.pages, page)
 
 		for _, nlk := range nextLinks {

@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	"net/url"
 
 	"github.com/PuerkitoBio/goquery"
@@ -11,11 +12,14 @@ type foundURL struct {
 	depth uint
 }
 
-func (crw *crawler) checkLink(absURL *url.URL) (BrokenLink, bool) {
+func (crw *crawler) checkLink(ctx context.Context, absURL *url.URL) (BrokenLink, bool) {
 	u := absURL.String()
 	result := BrokenLink{URL: u}
 
-	resp, err := crw.client.Get(absURL.String())
+	resp, err := crw.get(ctx, absURL)
+	if err != nil && ctx.Err() != nil {
+		return result, false
+	}
 	if err != nil {
 		result.Error = err.Error()
 		return result, true
@@ -30,7 +34,12 @@ func (crw *crawler) checkLink(absURL *url.URL) (BrokenLink, bool) {
 	return result, false
 }
 
-func (crw *crawler) checkLinks(hrefs []string, pageURL *url.URL, depth uint) ([]BrokenLink, []foundURL) {
+func (crw *crawler) checkLinks(
+	ctx context.Context,
+	hrefs []string,
+	pageURL *url.URL,
+	depth uint,
+) ([]BrokenLink, []foundURL) {
 	var (
 		brokenLinks []BrokenLink
 		foundLinks  []foundURL
@@ -51,7 +60,7 @@ func (crw *crawler) checkLinks(hrefs []string, pageURL *url.URL, depth uint) ([]
 
 		checked[key] = true
 
-		if link, broken := crw.checkLink(absURL); broken {
+		if link, broken := crw.checkLink(ctx, absURL); broken {
 			brokenLinks = append(brokenLinks, link)
 		}
 

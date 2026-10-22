@@ -6,8 +6,11 @@ build:
 test:
 	go test -coverprofile=coverage.out ./...
 
+URL ?= localhost:7070
+DEPTH ?= 3
+
 run:
-	go run cmd/hexlet-go-crawler/main.go "$(URL)"
+	go run cmd/hexlet-go-crawler/main.go -depth $(DEPTH) "$(URL)" 
 
 lint:
 	golangci-lint run

@@ -1,7 +1,9 @@
 package crawler_test
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,7 +20,7 @@ func setupTestServer(t *testing.T) *httptest.Server {
 
 	files := http.FileServer(http.Dir("testdata"))
 
-	handler := http.HandlerFunc((func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/server-error":
 			w.WriteHeader(http.StatusInternalServerError)
@@ -27,7 +29,7 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		default:
 			files.ServeHTTP(w, r)
 		}
-	}))
+	})
 
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -69,4 +71,28 @@ func pageDepths(t *testing.T, opts crawler.Options) map[string]uint {
 	}
 
 	return result
+}
+
+func newCancelServer(t *testing.T) (*httptest.Server, context.Context) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	files := http.FileServer(http.Dir("testdata"))
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			_, _ = fmt.Fprintf(w, `<a href="/cancel">x</a>`)
+		case "/cancel":
+			cancel()
+			<-r.Context().Done()
+		default:
+			files.ServeHTTP(w, r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	return server, ctx
 }
