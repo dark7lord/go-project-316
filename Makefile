@@ -8,9 +8,13 @@ test:
 
 URL ?= localhost:7070
 DEPTH ?= 3
+DELAY ?= 0
 
 run:
-	go run cmd/hexlet-go-crawler/main.go -depth $(DEPTH) "$(URL)" 
+	go run cmd/hexlet-go-crawler/main.go \
+		-depth $(DEPTH) \
+		-delay $(DELAY) \
+		$(URL) 
 
 lint:
 	golangci-lint run

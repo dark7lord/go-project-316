@@ -2,6 +2,7 @@ package crawler_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -69,4 +70,20 @@ func TestCrawlDepth(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestCrawlSameReportWithDelay(t *testing.T) {
+	server := setupTestServer(t)
+
+	opts := crawler.Options{
+		URL:        server.URL + "/",
+		HTTPClient: server.Client(),
+		Depth:      2,
+	}
+	withoutDelay := pageDepths(t, opts)
+
+	opts.Delay = 10 * time.Millisecond
+	withDelay := pageDepths(t, opts)
+
+	require.Equal(t, withoutDelay, withDelay)
 }

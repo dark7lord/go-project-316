@@ -3,12 +3,11 @@ package crawler
 import (
 	"context"
 	"errors"
-	"net/http"
 	"net/url"
 )
 
 type crawler struct {
-	client     *http.Client
+	fetcher    fetcher
 	rootURL    *url.URL
 	host       string
 	depth      uint
@@ -28,9 +27,9 @@ func newCrawler(opts Options) (*crawler, error) {
 	}
 
 	return &crawler{
+		fetcher:    newFetcher(opts.HTTPClient, opts.Delay),
 		rootURL:    normURL,
 		host:       normURL.Host,
-		client:     opts.HTTPClient,
 		depth:      opts.Depth,
 		indentJSON: opts.IndentJSON,
 		visited:    map[string]bool{},
