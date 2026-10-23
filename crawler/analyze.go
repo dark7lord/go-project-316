@@ -9,9 +9,11 @@ import (
 
 // Options configures a crawl run.
 type Options struct {
-	URL         string
-	Depth       uint
-	Retries     uint
+	URL     string
+	Depth   uint
+	Retries uint
+	// Delay is the minimal pause between the starts of two requests,
+	// shared by the whole crawl. Zero or negative means no limit.
 	Delay       time.Duration
 	Timeout     time.Duration
 	UserAgent   string
