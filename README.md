@@ -49,3 +49,21 @@ Example output:
   ]
 }
 ```
+
+## Rate limiting
+
+By default requests are sent without any pause. Two flags slow the crawler down:
+
+- `--delay` sets the minimal pause between the starts of two requests
+  (example: `200ms`, `1s`);
+- `--rps` limits the number of requests per second; it is converted into a
+  delay of `1s / rps` (`--rps 5` is the same as `--delay 200ms`).
+
+If both flags are set, `--rps` wins. A value of `0` means no limit. The limit
+is global for the whole process: page requests and link checks share it.
+Interrupting the crawler (Ctrl+C) stops the wait immediately.
+
+```bash
+go run ./cmd/hexlet-go-crawler --rps 5 https://example.com
+make run URL=https://example.com DELAY=200ms
+```
