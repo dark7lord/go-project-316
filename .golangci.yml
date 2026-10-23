@@ -17,6 +17,9 @@ linters:
     - lll
     - funlen
     - gocognit
+    - bodyclose
+    - noctx
+    - thelper
 
   settings:
     funlen:
