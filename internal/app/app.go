@@ -28,6 +28,19 @@ func flags() []cli.Flag {
 	}
 }
 
+func resolveDelay(rps uint, delay time.Duration) time.Duration {
+	if rps == 0 {
+		return delay
+	}
+
+	result := time.Second / time.Duration(rps)
+	if result < 0 {
+		return 0
+	}
+
+	return result
+}
+
 func run(ctx context.Context, cmd *cli.Command) error {
 	if cmd.NArg() == 0 || cmd.Args().Get(0) == "" {
 		return cli.ShowRootCommandHelp(cmd)
@@ -39,13 +52,15 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("expected 1 url path, got '%s'", args)
 	}
 
+	delay := cmd.Duration("delay")
+	rps := cmd.Uint("rps")
+
 	opts := crawler.Options{
-		URL:     cmd.Args().Get(0),
-		Depth:   cmd.Uint("depth"),
-		Retries: cmd.Uint("retries"),
-		Delay:   cmd.Duration("delay"),
-		Timeout: cmd.Duration("timeout"),
-		// TODO: RPS?
+		URL:         cmd.Args().Get(0),
+		Depth:       cmd.Uint("depth"),
+		Retries:     cmd.Uint("retries"),
+		Delay:       resolveDelay(rps, delay),
+		Timeout:     cmd.Duration("timeout"),
 		UserAgent:   cmd.String("user-agent"),
 		Concurrency: cmd.Uint("workers"),
 		HTTPClient:  &http.Client{Timeout: cmd.Duration("timeout")},
