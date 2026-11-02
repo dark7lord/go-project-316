@@ -52,18 +52,40 @@ Example output:
 
 ## Rate limiting
 
-By default requests are sent without any pause. Two flags slow the crawler down:
+The first request starts immediately. With no rate limit configured, later
+requests are spaced by at least `100ms`. Two flags can configure a longer
+interval:
 
 - `--delay` sets the minimal pause between the starts of two requests
   (example: `200ms`, `1s`);
 - `--rps` limits the number of requests per second; it is converted into a
   delay of `1s / rps` (`--rps 5` is the same as `--delay 200ms`).
 
-If both flags are set, `--rps` wins. A value of `0` means no limit. The limit
-is global for the whole process: page requests and link checks share it.
-Interrupting the crawler (Ctrl+C) stops the wait immediately.
+If both flags are set, `--rps` wins. A value of `0` means no limit beyond the
+default `100ms` interval. The interval is global for the whole process: page
+requests, link checks, and retries share it. Interrupting the crawler (Ctrl+C)
+stops the wait immediately.
 
 ```bash
 go run ./cmd/hexlet-go-crawler --rps 5 https://example.com
 make run URL=https://example.com DELAY=200ms
+```
+
+## Retries
+
+`--retries` sets the maximum number of additional attempts for a request
+(default `1`). For example, `--retries 2` allows up to three requests total:
+the initial request and two retries. Retrying stops when the response is not
+retryable.
+
+The crawler retries transport errors, except context cancellation and deadline
+expiration, and HTTP responses that may be temporary: `408 Request Timeout`,
+`429 Too Many Requests`, and status codes `500–599`. Other HTTP statuses, such
+as `404 Not Found`, are returned without retrying.
+
+Each retry observes the configured request interval; with no interval
+configured, at least `100ms` passes before the next request.
+
+```bash
+go run ./cmd/hexlet-go-crawler --retries 2 https://example.com
 ```

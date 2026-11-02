@@ -24,7 +24,7 @@ func newTestFetcher(t *testing.T, delay time.Duration) (*fetcher, *url.URL) {
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	ftr := newFetcher(server.Client(), delay)
+	ftr := newFetcher(server.Client(), delay, 0)
 
 	return &ftr, u
 }
@@ -77,7 +77,7 @@ func TestFetcherCancelStopsWaiting(t *testing.T) {
 	require.Less(t, time.Since(start), time.Second)
 }
 
-func TestFetcherNoDelayNoWait(t *testing.T) {
+func TestFetcherMinimumIntervalWithoutConfiguredDelay(t *testing.T) {
 	ftr, u := newTestFetcher(t, 0)
 	start := time.Now()
 
@@ -87,5 +87,5 @@ func TestFetcherNoDelayNoWait(t *testing.T) {
 		require.NoError(t, resp.Body.Close())
 	}
 
-	require.Less(t, time.Since(start), 50*time.Millisecond)
+	require.GreaterOrEqual(t, time.Since(start), 4*minRetryDelay)
 }

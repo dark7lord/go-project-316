@@ -7,13 +7,15 @@ test:
 	go test -coverprofile=coverage.out ./...
 
 URL ?= localhost:7070
-DEPTH ?= 3
+DEPTH ?= 1
 DELAY ?= 0
+RETRIES ?= 1
 
 run:
 	go run cmd/hexlet-go-crawler/main.go \
 		-depth $(DEPTH) \
 		-delay $(DELAY) \
+		-retries $(RETRIES) \
 		$(URL) 
 
 lint:

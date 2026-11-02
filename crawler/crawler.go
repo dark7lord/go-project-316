@@ -27,7 +27,11 @@ func newCrawler(opts Options) (*crawler, error) {
 	}
 
 	return &crawler{
-		fetcher:    newFetcher(opts.HTTPClient, opts.Delay),
+		fetcher: newFetcher(
+			opts.HTTPClient,
+			opts.Delay,
+			opts.Retries,
+		),
 		rootURL:    normURL,
 		host:       normURL.Host,
 		depth:      opts.Depth,
