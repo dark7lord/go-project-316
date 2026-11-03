@@ -41,6 +41,7 @@ func newCrawler(opts Options) (*crawler, error) {
 			opts.HTTPClient,
 			opts.Delay,
 			opts.Retries,
+			opts.UserAgent,
 		),
 		rootURL:     normURL,
 		host:        normURL.Host,

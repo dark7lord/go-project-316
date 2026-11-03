@@ -12,10 +12,11 @@ import (
 const minRetryDelay = 100 * time.Millisecond
 
 type fetcher struct {
-	client  *http.Client
-	delay   time.Duration
-	retries uint
-	limiter *requestLimiter
+	client    *http.Client
+	delay     time.Duration
+	retries   uint
+	userAgent string
+	limiter   *requestLimiter
 }
 
 type requestLimiter struct {
@@ -23,8 +24,14 @@ type requestLimiter struct {
 	next time.Time
 }
 
-func newFetcher(client *http.Client, delay time.Duration, retries uint) fetcher {
-	return fetcher{client, delay, retries, &requestLimiter{}}
+func newFetcher(client *http.Client, delay time.Duration, retries uint, userAgent string) fetcher {
+	return fetcher{
+		client:    client,
+		delay:     delay,
+		retries:   retries,
+		userAgent: userAgent,
+		limiter:   &requestLimiter{},
+	}
 }
 
 func isRetryable(res *http.Response, err error) bool {
@@ -72,6 +79,9 @@ func (ftr *fetcher) get(ctx context.Context, u *url.URL) (*http.Response, error)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+	if ftr.userAgent != "" {
+		req.Header.Set("User-Agent", ftr.userAgent)
 	}
 
 	res, err := ftr.client.Do(req)

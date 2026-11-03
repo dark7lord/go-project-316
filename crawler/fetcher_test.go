@@ -24,7 +24,7 @@ func newTestFetcher(t *testing.T, delay time.Duration) (*fetcher, *url.URL) {
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	ftr := newFetcher(server.Client(), delay, 0)
+	ftr := newFetcher(server.Client(), delay, 0, "")
 
 	return &ftr, u
 }

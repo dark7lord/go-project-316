@@ -54,15 +54,27 @@ func TestRun(t *testing.T) {
 }
 
 func TestRunPrintsReport(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	receivedUserAgent := make(chan string, 1)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case receivedUserAgent <- r.UserAgent():
+		default:
+		}
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write([]byte("<title>Home</title>"))
 	})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
-	code, stdout, stderr := runApp(server.URL)
+	const userAgent = "json-report-test-agent"
+	code, stdout, stderr := runApp(
+		"--indent-json", "2",
+		"--user-agent", userAgent,
+		server.URL,
+	)
 	require.Equal(t, 0, code, stderr)
+	require.Contains(t, stdout, "\n  \"root_url\"")
+	require.Equal(t, userAgent, <-receivedUserAgent)
 	require.True(t, strings.HasSuffix(stdout, "\n"))
 	require.False(t, strings.HasSuffix(stdout, "\n\n"))
 
@@ -77,8 +89,9 @@ func TestRunPrintsReport(t *testing.T) {
 		Depth:       10,
 		Retries:     1,
 		Timeout:     15 * time.Second,
+		UserAgent:   userAgent,
 		Concurrency: 4,
-		IndentJSON:  4,
+		IndentJSON:  2,
 		HTTPClient:  &http.Client{Timeout: 15 * time.Second},
 	})
 	require.NoError(t, err)
@@ -90,4 +103,15 @@ func TestRunPrintsReport(t *testing.T) {
 	report.Pages[0].DiscoveredAt = time.Time{}
 	libraryReport.Pages[0].DiscoveredAt = time.Time{}
 	require.Equal(t, libraryReport, report)
+}
+
+func TestIndentJSONDefaultsToFourSpaces(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("<title>Home</title>"))
+	}))
+	t.Cleanup(server.Close)
+
+	code, stdout, stderr := runApp(server.URL)
+	require.Equal(t, 0, code, stderr)
+	require.Contains(t, stdout, "\n    \"root_url\"")
 }

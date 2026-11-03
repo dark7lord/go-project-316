@@ -37,6 +37,11 @@ go run ./cmd/hexlet-go-crawler --depth 2 --workers 4 https://example.com
 `4`). Values `0` and `1` run the crawl sequentially. The report is ordered by
 depth and then URL.
 
+`--timeout` sets the per-request timeout (default `15s`).
+`--user-agent` overrides the HTTP client's default User-Agent header.
+`--indent-json` sets the number of spaces used to indent the JSON report
+(default `4`; use `0` for compact JSON).
+
 ## JSON report
 
 The library returns a JSON object with the crawl's `root_url`, configured
@@ -95,9 +100,9 @@ returns an HTTP status of 400 or greater. SEO flags indicate whether a title,
 description, or H1 element exists; the title and description fields contain
 their extracted text.
 
-The library's `IndentJSON` option controls indentation only. It does not change
-the report values or key order. The CLI writes the JSON report without extra
-text and terminates it with a newline.
+The library's `IndentJSON` option and CLI's `--indent-json` flag control
+indentation only. They do not change the report values or key order. The CLI
+writes the JSON report without extra text and terminates it with a newline.
 
 ## Assets
 
