@@ -14,7 +14,9 @@ type Options struct {
 	Retries uint
 	// Delay is the minimal pause between the starts of two requests,
 	// shared by the whole crawl. Zero or negative means no limit.
-	Delay       time.Duration
+	Delay time.Duration
+	// Timeout is the maximum duration of one HTTP attempt, including reading
+	// its response body. Zero preserves the HTTP client's configured timeout.
 	Timeout     time.Duration
 	UserAgent   string
 	Concurrency uint

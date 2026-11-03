@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -70,16 +72,92 @@ func TestPageNetworkError(t *testing.T) {
 
 func TestPageTimeout(t *testing.T) {
 	server := setupTestServer(t)
-	client := server.Client()
 	url := server.URL + "/slow"
-	client.Timeout = 50 * time.Millisecond
+	client := server.Client()
 
-	page := firstPage(t, crawler.Options{URL: url, HTTPClient: client})
+	page := firstPage(t, crawler.Options{
+		URL:        url,
+		HTTPClient: client,
+		Timeout:    50 * time.Millisecond,
+	})
 
 	require.Equal(t, "error", page.Status)
 	require.NotEmpty(t, page.Error)
 	require.Zero(t, page.HTTPStatus)
+	require.Contains(t, page.Error, context.DeadlineExceeded.Error())
+	require.Zero(t, client.Timeout)
+}
+
+func TestPageTimeoutWhileReadingBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("<title>Home</title>"))
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	t.Cleanup(server.Close)
+
+	page := firstPage(t, crawler.Options{
+		URL:        server.URL,
+		HTTPClient: server.Client(),
+		Timeout:    50 * time.Millisecond,
+	})
+
+	require.Equal(t, "error", page.Status)
+	require.Equal(t, http.StatusOK, page.HTTPStatus)
+	require.Contains(t, page.Error, context.DeadlineExceeded.Error())
+}
+
+func TestPageTimeoutUsesShorterHTTPClientLimit(t *testing.T) {
+	server := setupTestServer(t)
+	client := server.Client()
+	client.Timeout = 50 * time.Millisecond
+
+	page := firstPage(t, crawler.Options{
+		URL:        server.URL + "/slow",
+		HTTPClient: client,
+		Timeout:    200 * time.Millisecond,
+	})
+
+	require.Equal(t, "error", page.Status)
+	require.Zero(t, page.HTTPStatus)
 	require.Contains(t, page.Error, "Client.Timeout")
+	require.Equal(t, 50*time.Millisecond, client.Timeout)
+}
+
+func TestPageTimeoutZeroPreservesHTTPClientLimit(t *testing.T) {
+	server := setupTestServer(t)
+	client := server.Client()
+	client.Timeout = 50 * time.Millisecond
+
+	page := firstPage(t, crawler.Options{
+		URL:        server.URL + "/slow",
+		HTTPClient: client,
+	})
+
+	require.Equal(t, "error", page.Status)
+	require.Zero(t, page.HTTPStatus)
+	require.Contains(t, page.Error, "Client.Timeout")
+}
+
+func TestPageRetriesUseTimeoutPerAttempt(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		time.Sleep(30 * time.Millisecond)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(server.Close)
+
+	page := firstPage(t, crawler.Options{
+		URL:        server.URL,
+		HTTPClient: server.Client(),
+		Timeout:    80 * time.Millisecond,
+		Retries:    2,
+	})
+
+	require.Equal(t, "error", page.Status)
+	require.Equal(t, http.StatusServiceUnavailable, page.HTTPStatus)
+	require.Equal(t, int32(3), requests.Load())
 }
 
 func TestPageContextCanceled(t *testing.T) {

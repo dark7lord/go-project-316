@@ -3,6 +3,7 @@ package crawler
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
@@ -16,6 +17,7 @@ type fetcher struct {
 	delay     time.Duration
 	retries   uint
 	userAgent string
+	timeout   time.Duration
 	limiter   *requestLimiter
 }
 
@@ -24,14 +26,40 @@ type requestLimiter struct {
 	next time.Time
 }
 
-func newFetcher(client *http.Client, delay time.Duration, retries uint, userAgent string) fetcher {
+func newFetcher(
+	client *http.Client,
+	delay time.Duration,
+	retries uint,
+	userAgent string,
+	timeout time.Duration,
+) fetcher {
 	return fetcher{
 		client:    client,
 		delay:     delay,
 		retries:   retries,
 		userAgent: userAgent,
+		timeout:   timeout,
 		limiter:   &requestLimiter{},
 	}
+}
+
+type cancelBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (body *cancelBody) Read(p []byte) (int, error) {
+	n, err := body.ReadCloser.Read(p)
+	if err != nil {
+		body.cancel()
+	}
+
+	return n, err
+}
+
+func (body *cancelBody) Close() error {
+	body.cancel()
+	return body.ReadCloser.Close()
 }
 
 func isRetryable(res *http.Response, err error) bool {
@@ -72,12 +100,34 @@ func (ftr *fetcher) wait(ctx context.Context) error {
 }
 
 func (ftr *fetcher) get(ctx context.Context, u *url.URL) (*http.Response, error) {
-	if err := ftr.wait(ctx); err != nil {
-		return nil, err
+	remainingRetries := ftr.retries
+	for {
+		if err := ftr.wait(ctx); err != nil {
+			return nil, err
+		}
+
+		res, err := ftr.fetchOnce(ctx, u)
+
+		if !isRetryable(res, err) || remainingRetries == 0 {
+			return res, err
+		}
+
+		if res != nil {
+			_ = res.Body.Close()
+		}
+		remainingRetries--
+	}
+}
+
+func (ftr *fetcher) fetchOnce(ctx context.Context, u *url.URL) (*http.Response, error) {
+	attemptCtx, cancel := ctx, func() {}
+	if ftr.timeout > 0 {
+		attemptCtx, cancel = context.WithTimeout(ctx, ftr.timeout)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(attemptCtx, http.MethodGet, u.String(), nil)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	if ftr.userAgent != "" {
@@ -85,21 +135,12 @@ func (ftr *fetcher) get(ctx context.Context, u *url.URL) (*http.Response, error)
 	}
 
 	res, err := ftr.client.Do(req)
-	for range ftr.retries {
-		if !isRetryable(res, err) {
-			break
-		}
-
-		if res != nil {
-			_ = res.Body.Close()
-		}
-
-		if err := ftr.wait(ctx); err != nil {
-			return nil, err
-		}
-
-		res, err = ftr.client.Do(req)
+	if err != nil {
+		cancel()
+		return res, err
 	}
 
-	return res, err
+	res.Body = &cancelBody{ReadCloser: res.Body, cancel: cancel}
+
+	return res, nil
 }

@@ -92,7 +92,7 @@ func TestRunPrintsReport(t *testing.T) {
 		UserAgent:   userAgent,
 		Concurrency: 4,
 		IndentJSON:  2,
-		HTTPClient:  &http.Client{Timeout: 15 * time.Second},
+		HTTPClient:  &http.Client{},
 	})
 	require.NoError(t, err)
 

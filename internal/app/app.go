@@ -64,7 +64,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		Timeout:     cmd.Duration("timeout"),
 		UserAgent:   cmd.String("user-agent"),
 		Concurrency: cmd.Uint("workers"),
-		HTTPClient:  &http.Client{Timeout: cmd.Duration("timeout")},
+		HTTPClient:  &http.Client{},
 		IndentJSON:  cmd.Uint("indent-json"),
 	}
 

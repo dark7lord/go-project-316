@@ -31,7 +31,7 @@ func newStatusFetcher(t *testing.T, retries uint, statuses ...int) (*fetcher, *u
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	ftr := newFetcher(server.Client(), 0, retries, "")
+	ftr := newFetcher(server.Client(), 0, retries, "", 0)
 
 	return &ftr, u, &requests
 }
@@ -120,7 +120,7 @@ func TestFetcherRetriesTransportError(t *testing.T) {
 
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	ftr := newFetcher(server.Client(), 0, 1, "")
+	ftr := newFetcher(server.Client(), 0, 1, "", 0)
 
 	resp, err := ftr.get(t.Context(), u)
 	require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestFetcherReturnsLastTransportError(t *testing.T) {
 
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	ftr := newFetcher(server.Client(), 0, 2, "")
+	ftr := newFetcher(server.Client(), 0, 2, "", 0)
 
 	resp, err := ftr.get(t.Context(), u)
 	if resp != nil {
@@ -170,7 +170,7 @@ func TestFetcherCancelStopsWaitingBeforeRetry(t *testing.T) {
 
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	ftr := newFetcher(server.Client(), 5*time.Second, 1, "")
+	ftr := newFetcher(server.Client(), 5*time.Second, 1, "", 0)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
@@ -208,7 +208,7 @@ func TestFetcherDoesNotRetryCanceledContext(t *testing.T) {
 
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	ftr := newFetcher(server.Client(), 0, 3, "")
+	ftr := newFetcher(server.Client(), 0, 3, "", 0)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -257,7 +257,7 @@ func TestFetcherClosesIntermediateResponseBody(t *testing.T) {
 	}}}
 	u, err := url.Parse("http://example.test/")
 	require.NoError(t, err)
-	ftr := newFetcher(client, 0, 1, "")
+	ftr := newFetcher(client, 0, 1, "", 0)
 
 	resp, err := ftr.get(t.Context(), u)
 	require.NoError(t, err)
@@ -287,7 +287,7 @@ func TestFetcherAppliesDelayBetweenRetries(t *testing.T) {
 
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	ftr := newFetcher(server.Client(), delay, 1, "")
+	ftr := newFetcher(server.Client(), delay, 1, "", 0)
 
 	resp, err := ftr.get(t.Context(), u)
 	require.NoError(t, err)
@@ -316,7 +316,7 @@ func TestFetcherWaitsBeforeRetryByDefault(t *testing.T) {
 
 	u, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	ftr := newFetcher(server.Client(), 0, 1, "")
+	ftr := newFetcher(server.Client(), 0, 1, "", 0)
 
 	resp, err := ftr.get(t.Context(), u)
 	require.NoError(t, err)

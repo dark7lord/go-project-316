@@ -37,7 +37,11 @@ go run ./cmd/hexlet-go-crawler --depth 2 --workers 4 https://example.com
 `4`). Values `0` and `1` run the crawl sequentially. The report is ordered by
 depth and then URL.
 
-`--timeout` sets the per-request timeout (default `15s`).
+`--timeout` sets the timeout for each HTTP request, including reading its
+response body (default `15s`). When a retry is made, that attempt gets the same
+timeout limit; cancellation of the overall crawl can stop it sooner. When using
+the library, set `crawler.Options.Timeout`; a shorter timeout already
+configured on the supplied HTTP client takes precedence.
 `--user-agent` overrides the HTTP client's default User-Agent header.
 `--indent-json` sets the number of spaces used to indent the JSON report
 (default `4`; use `0` for compact JSON).
