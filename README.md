@@ -37,6 +37,17 @@ go run ./cmd/hexlet-go-crawler --depth 2 --workers 4 https://example.com
 `4`). Values `0` and `1` run the crawl sequentially. The report is ordered by
 depth and then URL.
 
+## Assets
+
+Each page report includes an `assets` array for images, external scripts, and
+stylesheets referenced by the page. Asset entries contain `url`, `type`,
+`status_code`, `size_bytes`, and `error`. The crawler uses `Content-Length`
+when available and otherwise counts bytes while reading the response body.
+Asset requests share the crawl's retries and request interval.
+
+Duplicate asset URLs are removed within each page, and the fetched result is
+shared across pages during the same crawl.
+
 Example output:
 
 ```json

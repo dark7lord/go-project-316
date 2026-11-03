@@ -23,6 +23,7 @@ type Page struct {
 	Status       string       `json:"status"`
 	Error        string       `json:"error"`
 	BrokenLinks  []BrokenLink `json:"broken_links,omitempty"`
+	Assets       []Asset      `json:"assets"`
 	DiscoveredAt time.Time    `json:"discovered_at"`
 	SEO          SEOResult    `json:"seo"`
 }
@@ -31,6 +32,7 @@ func newPage(u *url.URL, depth uint) Page {
 	return Page{
 		URL:          u.String(),
 		Depth:        depth,
+		Assets:       []Asset{},
 		DiscoveredAt: time.Now().UTC(),
 	}
 }
@@ -59,6 +61,7 @@ func (crw *crawler) parsePage(ctx context.Context, page *Page, resp *http.Respon
 	}
 
 	page.SEO = extractSEO(doc)
+	page.Assets = crw.fetchAssets(ctx, doc, resp.Request.URL)
 	links := extractLinks(doc)
 	reqURL := resp.Request.URL
 	brokenLinks, liveLinks := crw.checkLinks(ctx, links, reqURL, page.Depth)

@@ -9,14 +9,16 @@ import (
 )
 
 type crawler struct {
-	fetcher     fetcher
-	rootURL     *url.URL
-	host        string
-	depth       uint
-	concurrency uint
-	visited     map[string]bool
-	pages       []Page
-	indentJSON  uint
+	fetcher      fetcher
+	rootURL      *url.URL
+	host         string
+	depth        uint
+	concurrency  uint
+	visited      map[string]bool
+	pages        []Page
+	indentJSON   uint
+	assetCacheMu sync.Mutex
+	assetCache   map[string]*assetCacheEntry
 }
 
 type crawlResult struct {
@@ -47,6 +49,7 @@ func newCrawler(opts Options) (*crawler, error) {
 		indentJSON:  opts.IndentJSON,
 		visited:     map[string]bool{},
 		pages:       []Page{},
+		assetCache:  map[string]*assetCacheEntry{},
 	}, nil
 }
 
