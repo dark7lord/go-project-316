@@ -24,6 +24,7 @@ func TestBrokenLinks(t *testing.T) {
 	want := []crawler.BrokenLink{{
 		URL:        server.URL + "/not-found",
 		StatusCode: http.StatusNotFound,
+		Error:      http.StatusText(http.StatusNotFound),
 	}}
 	require.Equal(t, want, page.BrokenLinks)
 }
@@ -69,6 +70,7 @@ func TestBrokenLinkReportContainsStatusAfterRetries(t *testing.T) {
 	require.Equal(t, []crawler.BrokenLink{{
 		URL:        server.URL + "/flaky",
 		StatusCode: http.StatusServiceUnavailable,
+		Error:      http.StatusText(http.StatusServiceUnavailable),
 	}}, report.Pages[0].BrokenLinks)
 	require.Equal(t, int32(3), failedLinkRequests.Load())
 }

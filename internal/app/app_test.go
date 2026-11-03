@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -61,10 +63,31 @@ func TestRunPrintsReport(t *testing.T) {
 
 	code, stdout, stderr := runApp(server.URL)
 	require.Equal(t, 0, code, stderr)
+	require.True(t, strings.HasSuffix(stdout, "\n"))
+	require.False(t, strings.HasSuffix(stdout, "\n\n"))
 
 	var report crawler.Report
-	require.NoError(t, json.Unmarshal([]byte(stdout), &report))
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSuffix(stdout, "\n")), &report))
 	require.Equal(t, server.URL, report.RootURL)
 	require.Len(t, report.Pages, 1)
 	require.Equal(t, "Home", report.Pages[0].SEO.Title)
+
+	libraryJSON, err := crawler.Analyze(t.Context(), crawler.Options{
+		URL:         server.URL,
+		Depth:       10,
+		Retries:     1,
+		Timeout:     15 * time.Second,
+		Concurrency: 4,
+		IndentJSON:  4,
+		HTTPClient:  &http.Client{Timeout: 15 * time.Second},
+	})
+	require.NoError(t, err)
+
+	var libraryReport crawler.Report
+	require.NoError(t, json.Unmarshal(libraryJSON, &libraryReport))
+	report.GeneratedAt = time.Time{}
+	libraryReport.GeneratedAt = time.Time{}
+	report.Pages[0].DiscoveredAt = time.Time{}
+	libraryReport.Pages[0].DiscoveredAt = time.Time{}
+	require.Equal(t, libraryReport, report)
 }

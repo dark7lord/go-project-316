@@ -182,6 +182,8 @@ func TestPageWithoutAssetsHasEmptyArray(t *testing.T) {
 	var report Report
 	require.NoError(t, json.Unmarshal(data, &report))
 	require.Len(t, report.Pages, 1)
+	require.NotNil(t, report.Pages[0].BrokenLinks)
+	require.Empty(t, report.Pages[0].BrokenLinks)
 	require.NotNil(t, report.Pages[0].Assets)
 	require.Empty(t, report.Pages[0].Assets)
 }

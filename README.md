@@ -37,6 +37,68 @@ go run ./cmd/hexlet-go-crawler --depth 2 --workers 4 https://example.com
 `4`). Values `0` and `1` run the crawl sequentially. The report is ordered by
 depth and then URL.
 
+## JSON report
+
+The library returns a JSON object with the crawl's `root_url`, configured
+`depth`, UTC `generated_at` timestamp, and the list of `pages`. Each page
+includes its URL and depth, HTTP status, crawl status and error, SEO results,
+broken links, assets, and UTC `discovered_at` timestamp.
+
+All documented keys are present. Empty `pages`, `broken_links`, and `assets`
+fields are empty arrays. Timestamps use RFC3339, an ISO8601 format. For broken
+links, HTTP errors include the status text in `error`; transport errors have a
+zero `status_code` and the transport error message.
+
+```json
+{
+    "root_url": "https://example.com",
+    "depth": 1,
+    "generated_at": "2024-06-01T12:34:56Z",
+    "pages": [
+        {
+            "url": "https://example.com",
+            "depth": 0,
+            "http_status": 200,
+            "status": "ok",
+            "error": "",
+            "seo": {
+                "has_title": true,
+                "title": "Example title",
+                "has_description": true,
+                "description": "Example description",
+                "has_h1": true
+            },
+            "broken_links": [
+                {
+                    "url": "https://example.com/missing",
+                    "status_code": 404,
+                    "error": "Not Found"
+                }
+            ],
+            "assets": [
+                {
+                    "url": "https://example.com/static/logo.png",
+                    "type": "image",
+                    "status_code": 200,
+                    "size_bytes": 12345,
+                    "error": ""
+                }
+            ],
+            "discovered_at": "2024-06-01T12:34:56Z"
+        }
+    ]
+}
+```
+
+`status` is `ok` for successful pages and `error` when a page request fails or
+returns an HTTP status of 400 or greater. SEO flags indicate whether a title,
+description, or H1 element exists; the title and description fields contain
+their extracted text.
+
+The library's `IndentJSON` option controls indentation only. It does not change
+the report values or key order. The CLI writes the JSON report without extra
+text and terminates it with a newline.
+
 ## Assets
 
 Each page report includes an `assets` array for images, external scripts, and
@@ -47,23 +109,6 @@ Asset requests share the crawl's retries and request interval.
 
 Duplicate asset URLs are removed within each page, and the fetched result is
 shared across pages during the same crawl.
-
-Example output:
-
-```json
-{
-  "root_url": "https://example.com",
-  "depth": 10,
-  "generated_at": "2026-10-14T14:00:00Z",
-  "pages": [
-    {
-      "url": "https://example.com",
-      "depth": 0,
-      "http_status": 200
-    }
-  ]
-}
-```
 
 ## Rate limiting
 

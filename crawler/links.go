@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 
 	"github.com/PuerkitoBio/goquery"
@@ -28,6 +29,8 @@ func (crw *crawler) checkLink(ctx context.Context, absURL *url.URL) (BrokenLink,
 
 	if code := resp.StatusCode; code >= 400 {
 		result.StatusCode = code
+		result.Error = http.StatusText(code)
+
 		return result, true
 	}
 
@@ -41,7 +44,7 @@ func (crw *crawler) checkLinks(
 	depth uint,
 ) ([]BrokenLink, []foundURL) {
 	var (
-		brokenLinks []BrokenLink
+		brokenLinks = []BrokenLink{}
 		foundLinks  []foundURL
 	)
 

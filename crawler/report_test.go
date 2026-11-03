@@ -19,9 +19,11 @@ func newTestCrawler(t *testing.T) *crawler {
 		rootURL: root,
 		depth:   3,
 		pages: []Page{{
-			URL:        "http://simple.test/blog",
-			HTTPStatus: 200,
-			Status:     statusOK,
+			URL:         "http://simple.test/blog",
+			HTTPStatus:  200,
+			Status:      statusOK,
+			BrokenLinks: []BrokenLink{},
+			Assets:      []Asset{},
 		}},
 	}
 }
@@ -39,4 +41,10 @@ func TestReport(t *testing.T) {
 	require.Equal(t, uint(3), got.Depth)
 	require.WithinDuration(t, time.Now(), got.GeneratedAt, 2*time.Second)
 	require.Equal(t, crw.pages, got.Pages)
+}
+
+func TestBrokenLinkJSONIncludesAllFields(t *testing.T) {
+	data, err := json.Marshal(BrokenLink{})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"url":"","status_code":0,"error":""}`, string(data))
 }

@@ -9,8 +9,8 @@ import (
 // BrokenLink is a link found on a page and its check result.
 type BrokenLink struct {
 	URL        string `json:"url"`
-	StatusCode int    `json:"status_code,omitempty"`
-	Error      string `json:"error,omitempty"`
+	StatusCode int    `json:"status_code"`
+	Error      string `json:"error"`
 }
 
 // Report is the crawl report.
