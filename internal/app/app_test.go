@@ -68,12 +68,11 @@ func TestRunPrintsReport(t *testing.T) {
 
 	const userAgent = "json-report-test-agent"
 	code, stdout, stderr := runApp(
-		"--indent-json", "2",
 		"--user-agent", userAgent,
 		server.URL,
 	)
 	require.Equal(t, 0, code, stderr)
-	require.Contains(t, stdout, "\n  \"root_url\"")
+	require.Contains(t, stdout, "\n    \"root_url\"")
 	require.Equal(t, userAgent, <-receivedUserAgent)
 	require.True(t, strings.HasSuffix(stdout, "\n"))
 	require.False(t, strings.HasSuffix(stdout, "\n\n"))
@@ -91,7 +90,7 @@ func TestRunPrintsReport(t *testing.T) {
 		Timeout:     15 * time.Second,
 		UserAgent:   userAgent,
 		Concurrency: 4,
-		IndentJSON:  2,
+		IndentJSON:  true,
 		HTTPClient:  &http.Client{},
 	})
 	require.NoError(t, err)
@@ -105,7 +104,21 @@ func TestRunPrintsReport(t *testing.T) {
 	require.Equal(t, libraryReport, report)
 }
 
-func TestIndentJSONDefaultsToFourSpaces(t *testing.T) {
+func TestIndentJSONCanBeDisabled(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("<title>Home</title>"))
+	}))
+	t.Cleanup(server.Close)
+
+	code, stdout, stderr := runApp("--indent-json=false", server.URL)
+	require.Equal(t, 0, code, stderr)
+	require.True(t, strings.HasSuffix(stdout, "\n"))
+	compactJSON := strings.TrimSuffix(stdout, "\n")
+	require.NotContains(t, compactJSON, "\n")
+	require.True(t, json.Valid([]byte(compactJSON)))
+}
+
+func TestIndentJSONDefaultsToIndented(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("<title>Home</title>"))
 	}))

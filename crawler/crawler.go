@@ -16,7 +16,7 @@ type crawler struct {
 	concurrency  uint
 	visited      map[string]bool
 	pages        []Page
-	indentJSON   uint
+	indentJSON   bool
 	assetCacheMu sync.Mutex
 	assetCache   map[string]*assetCacheEntry
 }

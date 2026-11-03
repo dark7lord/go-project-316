@@ -20,7 +20,7 @@ type Options struct {
 	Timeout     time.Duration
 	UserAgent   string
 	Concurrency uint
-	IndentJSON  uint
+	IndentJSON  bool
 	HTTPClient  *http.Client
 }
 

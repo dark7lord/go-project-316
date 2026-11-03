@@ -43,8 +43,9 @@ timeout limit; cancellation of the overall crawl can stop it sooner. When using
 the library, set `crawler.Options.Timeout`; a shorter timeout already
 configured on the supplied HTTP client takes precedence.
 `--user-agent` overrides the HTTP client's default User-Agent header.
-`--indent-json` sets the number of spaces used to indent the JSON report
-(default `4`; use `0` for compact JSON).
+`--indent-json` controls JSON indentation (enabled by default; pass
+`--indent-json=false` for compact JSON). The library's `IndentJSON` option is
+`true` for indented output and `false` for compact output.
 
 ## JSON report
 

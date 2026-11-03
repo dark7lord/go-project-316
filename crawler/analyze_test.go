@@ -65,7 +65,7 @@ func TestAnalyzeJSONMatchesExampleWithIndenting(t *testing.T) {
 	unindentedJSON, err := crawler.Analyze(t.Context(), options)
 	require.NoError(t, err)
 
-	options.IndentJSON = 4
+	options.IndentJSON = true
 	indentedJSON, err := crawler.Analyze(t.Context(), options)
 	require.NoError(t, err)
 	require.NotEqual(t, unindentedJSON, indentedJSON)

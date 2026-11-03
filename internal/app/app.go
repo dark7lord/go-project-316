@@ -25,7 +25,7 @@ func flags() []cli.Flag {
 		&cli.UintFlag{Name: "rps", Value: 0, Usage: "limit requests per second (overrides delay)"},
 		&cli.StringFlag{Name: "user-agent", Usage: "custom user agent"},
 		&cli.UintFlag{Name: "workers", Value: 4, Usage: "number of concurrent workers"},
-		&cli.UintFlag{Name: "indent-json", Value: 4, Usage: "number of spaces for JSON indentation"},
+		&cli.BoolFlag{Name: "indent-json", Value: true, Usage: "indent the JSON report"},
 	}
 }
 
@@ -65,7 +65,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		UserAgent:   cmd.String("user-agent"),
 		Concurrency: cmd.Uint("workers"),
 		HTTPClient:  &http.Client{},
-		IndentJSON:  cmd.Uint("indent-json"),
+		IndentJSON:  cmd.Bool("indent-json"),
 	}
 
 	data, errAnalyze := crawler.Analyze(ctx, opts)

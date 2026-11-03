@@ -2,7 +2,6 @@ package crawler
 
 import (
 	"encoding/json"
-	"strings"
 	"time"
 )
 
@@ -29,7 +28,9 @@ func (crw *crawler) report() (data []byte, err error) {
 		GeneratedAt: time.Now().UTC(),
 	}
 
-	indent := strings.Repeat(" ", int(crw.indentJSON))
+	if !crw.indentJSON {
+		return json.Marshal(result)
+	}
 
-	return json.MarshalIndent(result, "", indent)
+	return json.MarshalIndent(result, "", "    ")
 }
