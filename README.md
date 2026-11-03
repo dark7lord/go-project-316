@@ -30,8 +30,12 @@ hosts are checked as possibly broken but never crawled. Each page appears
 in the report once.
 
 ```bash
-go run ./cmd/hexlet-go-crawler --depth 2 https://example.com
+go run ./cmd/hexlet-go-crawler --depth 2 --workers 4 https://example.com
 ```
+
+`--workers` sets the maximum number of pages processed concurrently (default
+`4`). Values `0` and `1` run the crawl sequentially. The report is ordered by
+depth and then URL.
 
 Example output:
 

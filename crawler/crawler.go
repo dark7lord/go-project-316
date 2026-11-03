@@ -4,16 +4,24 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"sort"
+	"sync"
 )
 
 type crawler struct {
-	fetcher    fetcher
-	rootURL    *url.URL
-	host       string
-	depth      uint
-	visited    map[string]bool
-	pages      []Page
-	indentJSON uint
+	fetcher     fetcher
+	rootURL     *url.URL
+	host        string
+	depth       uint
+	concurrency uint
+	visited     map[string]bool
+	pages       []Page
+	indentJSON  uint
+}
+
+type crawlResult struct {
+	page      Page
+	nextLinks []foundURL
 }
 
 func newCrawler(opts Options) (*crawler, error) {
@@ -32,12 +40,13 @@ func newCrawler(opts Options) (*crawler, error) {
 			opts.Delay,
 			opts.Retries,
 		),
-		rootURL:    normURL,
-		host:       normURL.Host,
-		depth:      opts.Depth,
-		indentJSON: opts.IndentJSON,
-		visited:    map[string]bool{},
-		pages:      []Page{},
+		rootURL:     normURL,
+		host:        normURL.Host,
+		depth:       opts.Depth,
+		concurrency: max(uint(1), opts.Concurrency),
+		indentJSON:  opts.IndentJSON,
+		visited:     map[string]bool{},
+		pages:       []Page{},
 	}, nil
 }
 
@@ -49,28 +58,75 @@ func (crw *crawler) crawl(ctx context.Context) {
 			break
 		}
 
-		curr := queue[0]
-		queue = queue[1:]
+		currentLevel := crw.nextLevel(queue)
+		if len(currentLevel) == 0 {
+			break
+		}
 
-		strURL := curr.URL.JoinPath().String()
-		if curr.URL.Host != crw.host || crw.visited[strURL] || curr.depth > crw.depth {
+		results := crw.processLevel(ctx, currentLevel)
+		queue = nil
+		for _, result := range results {
+			crw.pages = append(crw.pages, result.page)
+			queue = append(queue, result.nextLinks...)
+		}
+	}
+
+	sort.Slice(crw.pages, func(a, b int) bool {
+		if crw.pages[a].Depth != crw.pages[b].Depth {
+			return crw.pages[a].Depth < crw.pages[b].Depth
+		}
+
+		return crw.pages[a].URL < crw.pages[b].URL
+	})
+}
+
+func (crw *crawler) nextLevel(queue []foundURL) []foundURL {
+	level := make([]foundURL, 0, len(queue))
+	for _, candidate := range queue {
+		key := candidate.URL.JoinPath().String()
+		if candidate.URL.Host != crw.host || crw.visited[key] || candidate.depth > crw.depth {
 			continue
 		}
 
-		crw.visited[strURL] = true
-		page, nextLinks, ok := crw.fetchPage(ctx, curr.URL, curr.depth)
-		if !ok {
-			break
-		}
-		crw.pages = append(crw.pages, page)
-
-		for _, nlk := range nextLinks {
-			key := nlk.URL.JoinPath().String()
-			if _, hasVisited := crw.visited[key]; hasVisited {
-				continue
-			}
-
-			queue = append(queue, nlk)
-		}
+		crw.visited[key] = true
+		level = append(level, candidate)
 	}
+
+	return level
+}
+
+func (crw *crawler) processLevel(ctx context.Context, level []foundURL) []crawlResult {
+	linksCh := make(chan foundURL, len(level))
+	results := make(chan crawlResult, len(level))
+	workerCount := min(int(crw.concurrency), len(level))
+
+	var wg sync.WaitGroup
+	for range workerCount {
+		wg.Go(func() {
+			for link := range linksCh {
+				if ctx.Err() != nil {
+					continue
+				}
+
+				page, nextLinks, ok := crw.fetchPage(ctx, link.URL, link.depth)
+				if ok {
+					results <- crawlResult{page, nextLinks}
+				}
+			}
+		})
+	}
+
+	for _, link := range level {
+		linksCh <- link
+	}
+	close(linksCh)
+	wg.Wait()
+	close(results)
+
+	levelResults := make([]crawlResult, 0, len(level))
+	for result := range results {
+		levelResults = append(levelResults, result)
+	}
+
+	return levelResults
 }
