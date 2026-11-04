@@ -100,6 +100,83 @@ func TestFetcherHTTPRetryBehavior(t *testing.T) {
 	}
 }
 
+func TestFetcherHeadWithFallback(t *testing.T) {
+	tests := []struct {
+		name        string
+		headStatus  int
+		wantStatus  int
+		wantMethods []string
+	}{
+		{
+			name:        "uses head response",
+			headStatus:  http.StatusNotFound,
+			wantStatus:  http.StatusNotFound,
+			wantMethods: []string{http.MethodHead},
+		},
+		{
+			name:        "falls back when head is unsupported",
+			headStatus:  http.StatusMethodNotAllowed,
+			wantStatus:  http.StatusNotFound,
+			wantMethods: []string{http.MethodHead, http.MethodGet},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var methods []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				methods = append(methods, r.Method)
+				if r.Method == http.MethodHead {
+					w.WriteHeader(tt.headStatus)
+					return
+				}
+				http.NotFound(w, r)
+			}))
+			t.Cleanup(server.Close)
+
+			u, err := url.Parse(server.URL)
+			require.NoError(t, err)
+			ftr := newFetcher(server.Client(), 0, 0, "", 0)
+
+			resp, err := ftr.headWithFallback(t.Context(), u)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantStatus, resp.StatusCode)
+			require.NoError(t, resp.Body.Close())
+			require.Equal(t, tt.wantMethods, methods)
+		})
+	}
+}
+
+func TestFetcherHeadWithFallbackAfterTransportError(t *testing.T) {
+	var methods []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methods = append(methods, r.Method)
+		if r.Method == http.MethodHead {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				t.Errorf("hijack connection: %v", err)
+				return
+			}
+			_ = conn.Close()
+
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	u, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	ftr := newFetcher(server.Client(), 0, 0, "", 0)
+
+	resp, err := ftr.headWithFallback(t.Context(), u)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, []string{http.MethodHead, http.MethodGet}, methods)
+}
+
 func TestFetcherRetriesTransportError(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

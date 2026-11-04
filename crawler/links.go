@@ -17,7 +17,7 @@ func (crw *crawler) checkLink(ctx context.Context, absURL *url.URL) (BrokenLink,
 	u := absURL.String()
 	result := BrokenLink{URL: u}
 
-	resp, err := crw.fetcher.get(ctx, absURL)
+	resp, err := crw.fetcher.headWithFallback(ctx, absURL)
 	if err != nil && ctx.Err() != nil {
 		return result, false
 	}

@@ -100,13 +100,37 @@ func (ftr *fetcher) wait(ctx context.Context) error {
 }
 
 func (ftr *fetcher) get(ctx context.Context, u *url.URL) (*http.Response, error) {
+	return ftr.request(ctx, http.MethodGet, u)
+}
+
+func (ftr *fetcher) headWithFallback(ctx context.Context, u *url.URL) (*http.Response, error) {
+	resp, err := ftr.request(ctx, http.MethodHead, u)
+	if err == nil && resp.StatusCode != http.StatusMethodNotAllowed &&
+		resp.StatusCode != http.StatusNotImplemented {
+		return resp, nil
+	}
+	if ctx.Err() != nil {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+
+		return nil, ctx.Err()
+	}
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
+	return ftr.get(ctx, u)
+}
+
+func (ftr *fetcher) request(ctx context.Context, method string, u *url.URL) (*http.Response, error) {
 	remainingRetries := ftr.retries
 	for {
 		if err := ftr.wait(ctx); err != nil {
 			return nil, err
 		}
 
-		res, err := ftr.fetchOnce(ctx, u)
+		res, err := ftr.fetchOnce(ctx, method, u)
 
 		if !isRetryable(res, err) || remainingRetries == 0 {
 			return res, err
@@ -119,13 +143,13 @@ func (ftr *fetcher) get(ctx context.Context, u *url.URL) (*http.Response, error)
 	}
 }
 
-func (ftr *fetcher) fetchOnce(ctx context.Context, u *url.URL) (*http.Response, error) {
+func (ftr *fetcher) fetchOnce(ctx context.Context, method string, u *url.URL) (*http.Response, error) {
 	attemptCtx, cancel := ctx, func() {}
 	if ftr.timeout > 0 {
 		attemptCtx, cancel = context.WithTimeout(ctx, ftr.timeout)
 	}
 
-	req, err := http.NewRequestWithContext(attemptCtx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(attemptCtx, method, u.String(), nil)
 	if err != nil {
 		cancel()
 		return nil, err
