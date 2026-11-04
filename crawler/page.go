@@ -65,6 +65,9 @@ func (crw *crawler) parsePage(ctx context.Context, page *Page, resp *http.Respon
 	reqURL := resp.Request.URL
 	brokenLinks, liveLinks := crw.checkLinks(ctx, links, reqURL, page.Depth)
 	page.BrokenLinks = brokenLinks
+	if page.Depth+1 >= crw.depth {
+		return nil
+	}
 
 	return liveLinks
 }

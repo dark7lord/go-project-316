@@ -25,14 +25,102 @@ func TestAnalyzeInvalidInput(t *testing.T) {
 	require.ErrorIs(t, err, crawler.ErrInvalidURL)
 }
 
-func TestAnalyzeRejectsZeroDepth(t *testing.T) {
-	server := setupTestServer(t)
+func TestAnalyzeDepthZeroFetchesRootAndChecksLinks(t *testing.T) {
+	var missingLinkRequests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			_, _ = fmt.Fprint(w, `<a href="/missing">missing</a>`)
+			return
+		}
 
-	_, err := crawler.Analyze(t.Context(), crawler.Options{
+		missingLinkRequests++
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	data, err := crawler.Analyze(t.Context(), crawler.Options{
 		URL:        server.URL,
 		HTTPClient: server.Client(),
 	})
-	require.ErrorIs(t, err, crawler.ErrInvalidDepth)
+	require.NoError(t, err)
+
+	var report crawler.Report
+	require.NoError(t, json.Unmarshal(data, &report))
+	require.Len(t, report.Pages, 1)
+	require.Equal(t, []crawler.BrokenLink{{
+		URL:        server.URL + "/missing",
+		StatusCode: http.StatusNotFound,
+		Error:      http.StatusText(http.StatusNotFound),
+	}}, report.Pages[0].BrokenLinks)
+	require.Equal(t, 1, missingLinkRequests)
+}
+
+func TestAnalyzeDepthOneChecksRootLinksWithoutCrawlingChildren(t *testing.T) {
+	var linkRequests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			_, _ = fmt.Fprint(w, `<a href="/child">child</a><a href="/missing">missing</a>`)
+			return
+		}
+
+		linkRequests++
+		if r.URL.Path == "/missing" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = fmt.Fprint(w, `<title>Child</title>`)
+	}))
+	t.Cleanup(server.Close)
+
+	data, err := crawler.Analyze(t.Context(), crawler.Options{
+		URL:        server.URL,
+		Depth:      1,
+		HTTPClient: server.Client(),
+	})
+	require.NoError(t, err)
+
+	var report crawler.Report
+	require.NoError(t, json.Unmarshal(data, &report))
+	require.Len(t, report.Pages, 1)
+	require.Equal(t, []crawler.BrokenLink{{
+		URL:        server.URL + "/missing",
+		StatusCode: http.StatusNotFound,
+		Error:      http.StatusText(http.StatusNotFound),
+	}}, report.Pages[0].BrokenLinks)
+	require.Equal(t, 2, linkRequests)
+}
+
+func TestAnalyzeDepthTwoCrawlsChildrenAndChecksTheirLinks(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			_, _ = fmt.Fprint(w, `<a href="/child">child</a>`)
+		case "/child":
+			_, _ = fmt.Fprint(w, `<a href="/missing">missing</a>`)
+		case "/missing":
+			http.NotFound(w, r)
+		}
+	})
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	data, err := crawler.Analyze(t.Context(), crawler.Options{
+		URL:        server.URL,
+		Depth:      2,
+		HTTPClient: server.Client(),
+	})
+	require.NoError(t, err)
+
+	var report crawler.Report
+	require.NoError(t, json.Unmarshal(data, &report))
+	require.Len(t, report.Pages, 2)
+	require.Equal(t, uint(0), report.Pages[0].Depth)
+	require.Equal(t, uint(1), report.Pages[1].Depth)
+	require.Equal(t, []crawler.BrokenLink{{
+		URL:        server.URL + "/missing",
+		StatusCode: http.StatusNotFound,
+		Error:      http.StatusText(http.StatusNotFound),
+	}}, report.Pages[1].BrokenLinks)
 }
 
 func TestAnalyzeCanceledContext(t *testing.T) {

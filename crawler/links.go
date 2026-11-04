@@ -55,21 +55,16 @@ func (crw *crawler) checkLinks(
 		if !ok {
 			continue
 		}
-
 		absURL.Fragment = ""
 		absURL.RawFragment = ""
-
 		key := absURL.String()
 		if checked[key] {
 			continue
 		}
-
 		checked[key] = true
-
 		if link, broken := crw.checkLink(ctx, absURL); broken {
 			brokenLinks = append(brokenLinks, link)
 		}
-
 		found := foundURL{URL: absURL, depth: depth + 1}
 		foundLinks = append(foundLinks, found)
 	}

@@ -37,7 +37,7 @@ func setupTestServer(t *testing.T) *httptest.Server {
 	return server
 }
 
-// firstPage runs Analyze and returns the only page from the report.
+// firstPage runs Analyze and returns the root page from the report.
 func firstPage(t *testing.T, opts crawler.Options) crawler.Page {
 	t.Helper()
 
@@ -46,7 +46,7 @@ func firstPage(t *testing.T, opts crawler.Options) crawler.Page {
 
 	var report crawler.Report
 	require.NoError(t, json.Unmarshal(data, &report))
-	require.Len(t, report.Pages, 1)
+	require.NotEmpty(t, report.Pages)
 
 	return report.Pages[0]
 }

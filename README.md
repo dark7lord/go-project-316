@@ -16,19 +16,21 @@ make check                          # run tests and linter
 
 ## Crawl depth
 
-`Depth` (and the CLI's `--depth`) is the number of page levels to visit,
-including the start page. The `depth` reported for each page remains its
-number of link hops from the start URL:
+`Depth` (and the CLI's `--depth`) is the maximum number of page levels to visit.
+The `depth` reported for each page remains its number of link hops from the
+start URL:
 
 - the start page has `depth: 0`;
 - pages it links to have `depth: 1`, their links `depth: 2`, and so on.
 
-`--depth` must be greater than `0`: `--depth 1` checks only the start page;
-`--depth 2` also checks pages linked from it. The default is `10`.
+The outgoing links of every visited page are checked, regardless of depth.
+`--depth 0` or `--depth 1` visits only the start page; `--depth 2` also visits
+its child pages. Link targets beyond the configured depth are not followed as
+pages. The default is `10`.
 
-Only pages on the same host as the start URL are crawled. Links to other
-hosts are checked as possibly broken but never crawled. Each page appears
-in the report once.
+Only pages on the same host as the start URL are crawled. Links to other hosts
+are checked for broken responses but are not crawled as pages. Each page
+appears in the report once.
 
 ```bash
 go run ./cmd/hexlet-go-crawler --depth 2 --workers 4 https://example.com

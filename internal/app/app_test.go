@@ -39,7 +39,6 @@ func TestRun(t *testing.T) {
 		{"version", []string{"version"}, 0, "1.0.0", ""},
 		{"too many args", []string{"a.com", "b.com"}, 1, "", "expected 1 url"},
 		{"invalid flag value", []string{"--depth", "abc", "a.com"}, 1, "", "invalid value"},
-		{"zero depth", []string{"--depth", "0", "https://example.com"}, 1, "", "analyze error: depth must be greater than 0"},
 		{"invalid url", []string{"ftp://a.com"}, 1, "", "invalid url"},
 	}
 
@@ -107,11 +106,13 @@ func TestRunPrintsReport(t *testing.T) {
 
 func TestRunDepthCountsLevelsIncludingRoot(t *testing.T) {
 	tests := []struct {
-		depth     string
-		wantPaths []string
+		depth           string
+		wantReportDepth uint
+		wantPaths       []string
 	}{
-		{depth: "1", wantPaths: []string{"/"}},
-		{depth: "2", wantPaths: []string{"/", "/child"}},
+		{depth: "0", wantReportDepth: 0, wantPaths: []string{"/"}},
+		{depth: "1", wantReportDepth: 1, wantPaths: []string{"/"}},
+		{depth: "2", wantReportDepth: 2, wantPaths: []string{"/", "/child"}},
 	}
 
 	for _, tt := range tests {
@@ -131,7 +132,7 @@ func TestRunDepthCountsLevelsIncludingRoot(t *testing.T) {
 
 			var report crawler.Report
 			require.NoError(t, json.Unmarshal([]byte(stdout), &report))
-			require.Equal(t, uint(len(tt.wantPaths)), uint(report.Depth))
+			require.Equal(t, tt.wantReportDepth, report.Depth)
 			require.Len(t, report.Pages, len(tt.wantPaths))
 
 			gotPaths := make([]string, len(report.Pages))
