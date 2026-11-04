@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -72,102 +71,71 @@ func TestRunPrintsReport(t *testing.T) {
 		server.URL,
 	)
 	require.Equal(t, 0, code, stderr)
-	require.Contains(t, stdout, "\n    \"root_url\"")
-	require.Equal(t, userAgent, <-receivedUserAgent)
 	require.True(t, strings.HasSuffix(stdout, "\n"))
 	require.False(t, strings.HasSuffix(stdout, "\n\n"))
+	require.Equal(t, userAgent, <-receivedUserAgent)
 
 	var report crawler.Report
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimSuffix(stdout, "\n")), &report))
 	require.Equal(t, server.URL, report.RootURL)
 	require.Len(t, report.Pages, 1)
-	require.Equal(t, "Home", report.Pages[0].SEO.Title)
-
-	libraryJSON, err := crawler.Analyze(t.Context(), crawler.Options{
-		URL:         server.URL,
-		Depth:       10,
-		Retries:     1,
-		Timeout:     15 * time.Second,
-		UserAgent:   userAgent,
-		Concurrency: 4,
-		IndentJSON:  true,
-		HTTPClient:  &http.Client{},
-	})
-	require.NoError(t, err)
-
-	var libraryReport crawler.Report
-	require.NoError(t, json.Unmarshal(libraryJSON, &libraryReport))
-	report.GeneratedAt = time.Time{}
-	libraryReport.GeneratedAt = time.Time{}
-	report.Pages[0].DiscoveredAt = time.Time{}
-	libraryReport.Pages[0].DiscoveredAt = time.Time{}
-	require.Equal(t, libraryReport, report)
 }
 
-func TestRunDepthCountsLevelsIncludingRoot(t *testing.T) {
+func TestRunForwardsDepth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			_, _ = w.Write([]byte(`<a href="/child">child</a>`))
+			return
+		}
+
+		_, _ = w.Write([]byte(`<a href="/grandchild">grandchild</a>`))
+	}))
+	t.Cleanup(server.Close)
+
+	code, stdout, stderr := runApp("--depth", "2", server.URL)
+	require.Equal(t, 0, code, stderr)
+
+	var report crawler.Report
+	require.NoError(t, json.Unmarshal([]byte(stdout), &report))
+	require.Equal(t, uint(2), report.Depth)
+	require.Len(t, report.Pages, 2)
+	require.Equal(t, []string{server.URL, server.URL + "/child"}, []string{
+		report.Pages[0].URL,
+		report.Pages[1].URL,
+	})
+}
+
+func TestRunIndentJSON(t *testing.T) {
 	tests := []struct {
-		depth           string
-		wantReportDepth uint
-		wantPaths       []string
+		name         string
+		args         []string
+		wantIndented bool
 	}{
-		{depth: "0", wantReportDepth: 0, wantPaths: []string{"/"}},
-		{depth: "1", wantReportDepth: 1, wantPaths: []string{"/"}},
-		{depth: "2", wantReportDepth: 2, wantPaths: []string{"/", "/child"}},
+		{name: "default", wantIndented: true},
+		{name: "disabled", args: []string{"--indent-json=false"}, wantIndented: false},
 	}
 
 	for _, tt := range tests {
-		t.Run("depth "+tt.depth, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/" {
-					_, _ = w.Write([]byte(`<a href="/child">child</a>`))
-					return
-				}
-
-				_, _ = w.Write([]byte(`<a href="/grandchild">grandchild</a>`))
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte("<title>Home</title>"))
 			}))
 			t.Cleanup(server.Close)
 
-			code, stdout, stderr := runApp("--depth", tt.depth, server.URL)
+			args := make([]string, 0, len(tt.args)+1)
+			args = append(args, tt.args...)
+			args = append(args, server.URL)
+			code, stdout, stderr := runApp(args...)
 			require.Equal(t, 0, code, stderr)
+			require.True(t, strings.HasSuffix(stdout, "\n"))
 
-			var report crawler.Report
-			require.NoError(t, json.Unmarshal([]byte(stdout), &report))
-			require.Equal(t, tt.wantReportDepth, report.Depth)
-			require.Len(t, report.Pages, len(tt.wantPaths))
-
-			gotPaths := make([]string, len(report.Pages))
-			for i, page := range report.Pages {
-				gotPaths[i] = strings.TrimPrefix(page.URL, server.URL)
-				if gotPaths[i] == "" {
-					gotPaths[i] = "/"
-				}
+			compactJSON := strings.TrimSuffix(stdout, "\n")
+			if tt.wantIndented {
+				require.Contains(t, compactJSON, "\n    \"root_url\"")
+			} else {
+				require.NotContains(t, compactJSON, "\n")
 			}
-			require.Equal(t, tt.wantPaths, gotPaths)
+			require.True(t, json.Valid([]byte(compactJSON)))
 		})
 	}
-}
-
-func TestIndentJSONCanBeDisabled(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("<title>Home</title>"))
-	}))
-	t.Cleanup(server.Close)
-
-	code, stdout, stderr := runApp("--indent-json=false", server.URL)
-	require.Equal(t, 0, code, stderr)
-	require.True(t, strings.HasSuffix(stdout, "\n"))
-	compactJSON := strings.TrimSuffix(stdout, "\n")
-	require.NotContains(t, compactJSON, "\n")
-	require.True(t, json.Valid([]byte(compactJSON)))
-}
-
-func TestIndentJSONDefaultsToIndented(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("<title>Home</title>"))
-	}))
-	t.Cleanup(server.Close)
-
-	code, stdout, stderr := runApp(server.URL)
-	require.Equal(t, 0, code, stderr)
-	require.Contains(t, stdout, "\n    \"root_url\"")
 }

@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ func TestExtractSEO(t *testing.T) {
 	tests := []struct {
 		name string
 		file string
+		html string
 		want SEOResult
 	}{
 		{
@@ -65,30 +67,33 @@ func TestExtractSEO(t *testing.T) {
 			file: "testdata/seo/svg-title.html",
 			want: SEOResult{HasH1: true},
 		},
+		{
+			name: "feed title outside head",
+			html: `<?xml version="1.0"?><rss><channel><title>Crawler Blog</title></channel></rss>`,
+			want: SEOResult{
+				HasTitle: true,
+				Title:    "Crawler Blog",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, err := os.Open(tt.file)
-			require.NoError(t, err)
-			t.Cleanup(func() { _ = f.Close() })
+			var reader io.Reader
 
-			doc, err := goquery.NewDocumentFromReader(f)
+			if tt.file != "" {
+				f, err := os.Open(tt.file)
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = f.Close() })
+				reader = f
+			} else {
+				reader = strings.NewReader(tt.html)
+			}
+
+			doc, err := goquery.NewDocumentFromReader(reader)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.want, extractSEO(doc))
 		})
 	}
-}
-
-func TestExtractSEOFindsFeedTitleOutsideHead(t *testing.T) {
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(
-		`<?xml version="1.0"?><rss><channel><title>Crawler Blog</title></channel></rss>`,
-	))
-	require.NoError(t, err)
-
-	require.Equal(t, SEOResult{
-		HasTitle: true,
-		Title:    "Crawler Blog",
-	}, extractSEO(doc))
 }

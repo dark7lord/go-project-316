@@ -43,8 +43,29 @@ func TestReport(t *testing.T) {
 	require.Equal(t, crw.pages, got.Pages)
 }
 
-func TestBrokenLinkJSONIncludesAllFields(t *testing.T) {
-	data, err := json.Marshal(BrokenLink{})
-	require.NoError(t, err)
-	require.JSONEq(t, `{"url":"","status_code":0,"error":""}`, string(data))
+func TestReportJSONContracts(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{
+			name:  "asset omits empty error",
+			value: Asset{},
+			want:  `{"url":"","type":"","status_code":0,"size_bytes":0}`,
+		},
+		{
+			name:  "broken link includes all fields",
+			value: BrokenLink{},
+			want:  `{"url":"","status_code":0,"error":""}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.value)
+			require.NoError(t, err)
+			require.JSONEq(t, tt.want, string(data))
+		})
+	}
 }

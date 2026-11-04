@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -17,129 +16,160 @@ import (
 func TestAnalyzeInvalidInput(t *testing.T) {
 	server := setupTestServer(t)
 
-	ctx := t.Context()
-	_, err := crawler.Analyze(ctx, crawler.Options{URL: server.URL, Depth: 1})
-	require.Error(t, err, "nil http client")
+	tests := []struct {
+		name       string
+		opts       crawler.Options
+		wantErrIs  error
+		wantErrMsg string
+	}{
+		{
+			name:       "nil http client",
+			opts:       crawler.Options{URL: server.URL, Depth: 1},
+			wantErrMsg: "http client is required",
+		},
+		{
+			name:      "invalid url",
+			opts:      crawler.Options{URL: "ftp://x", Depth: 1, HTTPClient: server.Client()},
+			wantErrIs: crawler.ErrInvalidURL,
+		},
+	}
 
-	_, err = crawler.Analyze(ctx, crawler.Options{URL: "ftp://x", Depth: 1, HTTPClient: server.Client()})
-	require.ErrorIs(t, err, crawler.ErrInvalidURL)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := crawler.Analyze(t.Context(), tt.opts)
+			require.Error(t, err)
+
+			if tt.wantErrIs != nil {
+				require.ErrorIs(t, err, tt.wantErrIs)
+			}
+			if tt.wantErrMsg != "" {
+				require.ErrorContains(t, err, tt.wantErrMsg)
+			}
+		})
+	}
 }
 
-func TestAnalyzeDepthZeroFetchesRootAndChecksLinks(t *testing.T) {
-	var missingLinkRequests int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			_, _ = fmt.Fprint(w, `<a href="/missing">missing</a>`)
-			return
-		}
+func TestAnalyzeDepth(t *testing.T) {
+	server := setupTestServer(t)
 
-		missingLinkRequests++
-		http.NotFound(w, r)
-	}))
-	t.Cleanup(server.Close)
+	tests := []struct {
+		name  string
+		depth uint
+		want  map[string]uint
+	}{
+		{
+			name:  "depth 0",
+			depth: 0,
+			want: map[string]uint{
+				"/": 0,
+			},
+		},
+		{
+			name:  "depth 1",
+			depth: 1,
+			want: map[string]uint{
+				"/": 0,
+			},
+		},
+		{
+			name:  "depth 2",
+			depth: 2,
+			want: map[string]uint{
+				"/":              0,
+				"/about.html":    1,
+				"/contacts.html": 1,
+				"/not-found":     1,
+			},
+		},
+		{
+			name:  "depth 3",
+			depth: 3,
+			want: map[string]uint{
+				"/":              0,
+				"/about.html":    1,
+				"/contacts.html": 1,
+				"/not-found":     1,
+				"/team.html":     2,
+			},
+		},
+	}
 
-	data, err := crawler.Analyze(t.Context(), crawler.Options{
-		URL:        server.URL,
-		HTTPClient: server.Client(),
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := analyzeReport(t, crawler.Options{
+				URL:        server.URL + "/",
+				HTTPClient: server.Client(),
+				Depth:      tt.depth,
+			})
+
+			require.Equal(t, tt.depth, report.Depth)
+			require.Equal(t, tt.want, pageDepthsFromReport(t, report))
+		})
+	}
+}
+
+func TestAnalyzeCancellation(t *testing.T) {
+	t.Run("canceled before start", func(t *testing.T) {
+		server := setupTestServer(t)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		report := analyzeReportWithContext(ctx, t, crawler.Options{
+			URL:        server.URL,
+			Depth:      1,
+			HTTPClient: server.Client(),
+		})
+		require.Empty(t, report.Pages)
+		require.ErrorIs(t, ctx.Err(), context.Canceled)
 	})
-	require.NoError(t, err)
 
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
-	require.Len(t, report.Pages, 1)
-	require.Equal(t, []crawler.BrokenLink{{
-		URL:        server.URL + "/missing",
-		StatusCode: http.StatusNotFound,
-		Error:      http.StatusText(http.StatusNotFound),
-	}}, report.Pages[0].BrokenLinks)
-	require.Equal(t, 1, missingLinkRequests)
+	t.Run("during page fetch", func(t *testing.T) {
+		server, ctx := newCancelServer(t)
+
+		report := analyzeReportWithContext(ctx, t, crawler.Options{
+			URL:        server.URL + "/cancel",
+			Depth:      1,
+			HTTPClient: server.Client(),
+		})
+		require.Empty(t, report.Pages)
+		require.ErrorIs(t, ctx.Err(), context.Canceled)
+	})
+
+	t.Run("during link check", func(t *testing.T) {
+		server, ctx := newCancelServer(t)
+
+		report := analyzeReportWithContext(ctx, t, crawler.Options{
+			URL:        server.URL,
+			Depth:      1,
+			HTTPClient: server.Client(),
+		})
+		require.NotEmpty(t, report.Pages)
+		require.Equal(t, "ok", report.Pages[0].Status)
+		require.Empty(t, report.Pages[0].BrokenLinks)
+		require.ErrorIs(t, ctx.Err(), context.Canceled)
+	})
 }
 
-func TestAnalyzeDepthOneChecksRootLinksWithoutCrawlingChildren(t *testing.T) {
-	var linkRequests int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			_, _ = fmt.Fprint(w, `<a href="/child">child</a><a href="/missing">missing</a>`)
-			return
-		}
-
-		linkRequests++
-		if r.URL.Path == "/missing" {
-			http.NotFound(w, r)
-			return
-		}
-		_, _ = fmt.Fprint(w, `<title>Child</title>`)
+func TestAnalyzeEmptyCollectionsAreArrays(t *testing.T) {
+	server := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `<p>no assets</p>`)
 	}))
-	t.Cleanup(server.Close)
 
-	data, err := crawler.Analyze(t.Context(), crawler.Options{
+	report := analyzeReport(t, crawler.Options{
 		URL:        server.URL,
 		Depth:      1,
 		HTTPClient: server.Client(),
 	})
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
 	require.Len(t, report.Pages, 1)
-	require.Equal(t, []crawler.BrokenLink{{
-		URL:        server.URL + "/missing",
-		StatusCode: http.StatusNotFound,
-		Error:      http.StatusText(http.StatusNotFound),
-	}}, report.Pages[0].BrokenLinks)
-	require.Equal(t, 2, linkRequests)
-}
-
-func TestAnalyzeDepthTwoCrawlsChildrenAndChecksTheirLinks(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/":
-			_, _ = fmt.Fprint(w, `<a href="/child">child</a>`)
-		case "/child":
-			_, _ = fmt.Fprint(w, `<a href="/missing">missing</a>`)
-		case "/missing":
-			http.NotFound(w, r)
-		}
-	})
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-
-	data, err := crawler.Analyze(t.Context(), crawler.Options{
-		URL:        server.URL,
-		Depth:      2,
-		HTTPClient: server.Client(),
-	})
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
-	require.Len(t, report.Pages, 2)
-	require.Equal(t, uint(0), report.Pages[0].Depth)
-	require.Equal(t, uint(1), report.Pages[1].Depth)
-	require.Equal(t, []crawler.BrokenLink{{
-		URL:        server.URL + "/missing",
-		StatusCode: http.StatusNotFound,
-		Error:      http.StatusText(http.StatusNotFound),
-	}}, report.Pages[1].BrokenLinks)
-}
-
-func TestAnalyzeCanceledContext(t *testing.T) {
-	server := setupTestServer(t)
-
-	canceledCtx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	opts := crawler.Options{URL: server.URL, Depth: 1, HTTPClient: server.Client()}
-	data, err := crawler.Analyze(canceledCtx, opts)
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
-	require.Empty(t, report.Pages)
+	require.NotNil(t, report.Pages[0].BrokenLinks)
+	require.Empty(t, report.Pages[0].BrokenLinks)
+	require.NotNil(t, report.Pages[0].Assets)
+	require.Empty(t, report.Pages[0].Assets)
 }
 
 func TestAnalyzeJSONMatchesExampleWithIndenting(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/":
 			_, _ = fmt.Fprint(w, `
@@ -157,7 +187,6 @@ func TestAnalyzeJSONMatchesExampleWithIndenting(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
-	t.Cleanup(server.Close)
 
 	options := crawler.Options{URL: server.URL, Depth: 1, HTTPClient: server.Client()}
 	unindentedJSON, err := crawler.Analyze(t.Context(), options)

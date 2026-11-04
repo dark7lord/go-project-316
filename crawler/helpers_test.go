@@ -15,6 +15,15 @@ import (
 	"code/crawler"
 )
 
+func newTestServer(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	return server
+}
+
 func setupTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
@@ -31,34 +40,39 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		}
 	})
 
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+	return newTestServer(t, handler)
+}
 
-	return server
+func analyzeReport(t *testing.T, opts crawler.Options) crawler.Report {
+	t.Helper()
+
+	return analyzeReportWithContext(t.Context(), t, opts)
+}
+
+func analyzeReportWithContext(ctx context.Context, t *testing.T, opts crawler.Options) crawler.Report {
+	t.Helper()
+
+	data, err := crawler.Analyze(ctx, opts)
+	require.NoError(t, err)
+
+	var report crawler.Report
+	require.NoError(t, json.Unmarshal(data, &report))
+
+	return report
 }
 
 // firstPage runs Analyze and returns the root page from the report.
 func firstPage(t *testing.T, opts crawler.Options) crawler.Page {
 	t.Helper()
 
-	data, err := crawler.Analyze(t.Context(), opts)
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
+	report := analyzeReport(t, opts)
 	require.NotEmpty(t, report.Pages)
 
 	return report.Pages[0]
 }
 
-func pageDepths(t *testing.T, opts crawler.Options) map[string]uint {
+func pageDepthsFromReport(t *testing.T, report crawler.Report) map[string]uint {
 	t.Helper()
-
-	data, err := crawler.Analyze(t.Context(), opts)
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
 
 	result := map[string]uint{}
 
@@ -71,6 +85,15 @@ func pageDepths(t *testing.T, opts crawler.Options) map[string]uint {
 	}
 
 	return result
+}
+
+func reportURLs(report crawler.Report) []string {
+	urls := make([]string, len(report.Pages))
+	for i, page := range report.Pages {
+		urls[i] = page.URL
+	}
+
+	return urls
 }
 
 func newCancelServer(t *testing.T) (*httptest.Server, context.Context) {
@@ -91,8 +114,5 @@ func newCancelServer(t *testing.T) (*httptest.Server, context.Context) {
 		}
 	})
 
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-
-	return server, ctx
+	return newTestServer(t, handler), ctx
 }

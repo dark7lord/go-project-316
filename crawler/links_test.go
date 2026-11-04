@@ -1,12 +1,11 @@
 package crawler_test
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -21,137 +20,194 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func TestBrokenLinks(t *testing.T) {
-	server := setupTestServer(t)
-
-	page := firstPage(t, crawler.Options{
-		URL:        server.URL + "/",
-		Depth:      1,
-		HTTPClient: server.Client(),
-	})
-
-	want := []crawler.BrokenLink{{
-		URL:        server.URL + "/not-found",
-		StatusCode: http.StatusNotFound,
-		Error:      http.StatusText(http.StatusNotFound),
-	}}
-	require.Equal(t, want, page.BrokenLinks)
+func brokenLink(url string, statusCode int) crawler.BrokenLink {
+	return crawler.BrokenLink{
+		URL:        url,
+		StatusCode: statusCode,
+		Error:      http.StatusText(statusCode),
+	}
 }
 
-func TestExternalBrokenLinksAreCheckedButNotCrawled(t *testing.T) {
+type linkRoute struct {
+	status int
+	body   string
+}
+
+func newLinkSite(t *testing.T, root string, routes map[string]linkRoute) (*httptest.Server, func(string) int32) {
+	t.Helper()
+
+	var mu sync.Mutex
+	requests := map[string]int32{}
+
+	server := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests[r.URL.Path]++
+		mu.Unlock()
+
+		if r.URL.Path == "/" {
+			_, _ = fmt.Fprint(w, root)
+
+			return
+		}
+
+		route, ok := routes[r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+
+			return
+		}
+
+		status := route.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		w.WriteHeader(status)
+		_, _ = fmt.Fprint(w, route.body)
+	}))
+
+	return server, func(path string) int32 {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return requests[path]
+	}
+}
+
+func TestAnalyzeBrokenLinks(t *testing.T) {
+	type brokenExpectation struct {
+		path   string
+		status int
+	}
+
+	tests := []struct {
+		name           string
+		root           string
+		routes         map[string]linkRoute
+		depth          uint
+		retries        uint
+		wantPages      int
+		wantBrokenPage int
+		wantBroken     []brokenExpectation
+		wantRequests   map[string]int32
+	}{
+		{
+			name:         "same host link returns 404",
+			root:         `<a href="/missing">missing</a>`,
+			depth:        1,
+			wantPages:    1,
+			wantBroken:   []brokenExpectation{{path: "/missing", status: http.StatusNotFound}},
+			wantRequests: map[string]int32{"/missing": 1},
+		},
+		{
+			name:         "depth zero still checks root links",
+			root:         `<a href="/missing">missing</a>`,
+			wantPages:    1,
+			wantBroken:   []brokenExpectation{{path: "/missing", status: http.StatusNotFound}},
+			wantRequests: map[string]int32{"/missing": 1},
+		},
+		{
+			name:         "depth one checks children without crawling them",
+			root:         `<a href="/child">child</a><a href="/missing">missing</a>`,
+			routes:       map[string]linkRoute{"/child": {body: "<title>Child</title>"}},
+			depth:        1,
+			wantPages:    1,
+			wantBroken:   []brokenExpectation{{path: "/missing", status: http.StatusNotFound}},
+			wantRequests: map[string]int32{"/child": 1, "/missing": 1},
+		},
+		{
+			name:           "depth two checks links on crawled children",
+			root:           `<a href="/child">child</a>`,
+			routes:         map[string]linkRoute{"/child": {body: `<a href="/missing">missing</a>`}},
+			depth:          2,
+			wantPages:      2,
+			wantBrokenPage: 1,
+			wantBroken:     []brokenExpectation{{path: "/missing", status: http.StatusNotFound}},
+			wantRequests:   map[string]int32{"/missing": 1},
+		},
+		{
+			name:         "fragments are checked once",
+			root:         `<a href="/missing#first">first</a><a href="/missing#second">second</a>`,
+			depth:        1,
+			wantPages:    1,
+			wantBroken:   []brokenExpectation{{path: "/missing", status: http.StatusNotFound}},
+			wantRequests: map[string]int32{"/missing": 1},
+		},
+		{
+			name:      "trailing slash is a separate url",
+			root:      `<a href="/missing">without slash</a><a href="/missing/">with slash</a>`,
+			depth:     1,
+			wantPages: 1,
+			wantBroken: []brokenExpectation{
+				{path: "/missing", status: http.StatusNotFound},
+				{path: "/missing/", status: http.StatusNotFound},
+			},
+			wantRequests: map[string]int32{"/missing": 1, "/missing/": 1},
+		},
+		{
+			name:         "retries report the final status",
+			root:         `<a href="/flaky">retry me</a>`,
+			routes:       map[string]linkRoute{"/flaky": {status: http.StatusServiceUnavailable}},
+			depth:        1,
+			retries:      2,
+			wantPages:    1,
+			wantBroken:   []brokenExpectation{{path: "/flaky", status: http.StatusServiceUnavailable}},
+			wantRequests: map[string]int32{"/flaky": 3},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server, requests := newLinkSite(t, tt.root, tt.routes)
+
+			report := analyzeReport(t, crawler.Options{
+				URL:        server.URL,
+				Depth:      tt.depth,
+				Retries:    tt.retries,
+				HTTPClient: server.Client(),
+			})
+			require.Len(t, report.Pages, tt.wantPages)
+
+			want := make([]crawler.BrokenLink, len(tt.wantBroken))
+			for i, link := range tt.wantBroken {
+				want[i] = brokenLink(server.URL+link.path, link.status)
+			}
+			require.Equal(t, want, report.Pages[tt.wantBrokenPage].BrokenLinks)
+
+			for path, count := range tt.wantRequests {
+				require.Equal(t, count, requests(path), path)
+			}
+		})
+	}
+}
+
+func TestAnalyzeExternalBrokenLinkIsCheckedButNotCrawled(t *testing.T) {
 	var externalRequests atomic.Int32
-	externalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	externalServer := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		externalRequests.Add(1)
 		http.NotFound(w, r)
 	}))
-	t.Cleanup(externalServer.Close)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			_, _ = fmt.Fprintf(w, `<a href="/child">internal</a><a href="%s/outside">external</a>`, externalServer.URL)
-			return
-		}
-		_, _ = w.Write([]byte(`<title>Child</title>`))
-	}))
-	t.Cleanup(server.Close)
+	root := fmt.Sprintf(
+		`<a href="/child">internal</a><a href="%s/outside">external</a>`,
+		externalServer.URL,
+	)
+	server, _ := newLinkSite(t, root, map[string]linkRoute{"/child": {body: `<title>Child</title>`}})
 
-	data, err := crawler.Analyze(t.Context(), crawler.Options{
+	report := analyzeReport(t, crawler.Options{
 		URL:        server.URL,
 		Depth:      2,
 		HTTPClient: server.Client(),
 	})
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
 	require.Len(t, report.Pages, 2)
-	require.Equal(t, []crawler.BrokenLink{{
-		URL:        externalServer.URL + "/outside",
-		StatusCode: http.StatusNotFound,
-		Error:      http.StatusText(http.StatusNotFound),
-	}}, report.Pages[0].BrokenLinks)
-	require.Equal(t, int32(1), externalRequests.Load())
-	require.NotContains(t, []string{report.Pages[0].URL, report.Pages[1].URL}, externalServer.URL+"/outside")
-}
-
-func TestBrokenLinksWithFragmentsAreCheckedOnce(t *testing.T) {
-	var requests atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			_, _ = w.Write([]byte(`
-				<a href="/missing#first">first</a>
-				<a href="/missing#second">second</a>
-			`))
-
-			return
-		}
-
-		requests.Add(1)
-		http.NotFound(w, r)
-	}))
-	t.Cleanup(server.Close)
-
-	page := firstPage(t, crawler.Options{
-		URL:        server.URL,
-		Depth:      1,
-		HTTPClient: server.Client(),
-	})
-
-	require.Equal(t, []crawler.BrokenLink{{
-		URL:        server.URL + "/missing",
-		StatusCode: http.StatusNotFound,
-		Error:      http.StatusText(http.StatusNotFound),
-	}}, page.BrokenLinks)
-	require.Equal(t, int32(1), requests.Load())
-}
-
-func TestBrokenLinksWithTrailingSlashAreCheckedSeparately(t *testing.T) {
-	var requests atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			_, _ = w.Write([]byte(`
-				<a href="/missing">without slash</a>
-				<a href="/missing/">with slash</a>
-			`))
-
-			return
-		}
-
-		requests.Add(1)
-		http.NotFound(w, r)
-	}))
-	t.Cleanup(server.Close)
-
-	page := firstPage(t, crawler.Options{
-		URL:        server.URL,
-		Depth:      1,
-		HTTPClient: server.Client(),
-	})
-
 	require.Equal(t, []crawler.BrokenLink{
-		{
-			URL:        server.URL + "/missing",
-			StatusCode: http.StatusNotFound,
-			Error:      http.StatusText(http.StatusNotFound),
-		},
-		{
-			URL:        server.URL + "/missing/",
-			StatusCode: http.StatusNotFound,
-			Error:      http.StatusText(http.StatusNotFound),
-		},
-	}, page.BrokenLinks)
-	require.Equal(t, int32(2), requests.Load())
+		brokenLink(externalServer.URL+"/outside", http.StatusNotFound),
+	}, report.Pages[0].BrokenLinks)
+	require.Equal(t, int32(1), externalRequests.Load())
+	require.NotContains(t, reportURLs(report), externalServer.URL+"/outside")
 }
 
-func TestBrokenLinksNetworkError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			_, _ = w.Write([]byte(`<a href="/unreachable">dead</a>`))
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	t.Cleanup(server.Close)
+func TestAnalyzeBrokenLinkNetworkError(t *testing.T) {
+	server, _ := newLinkSite(t, `<a href="/unreachable">dead</a>`, nil)
 
 	client := server.Client()
 	client.Transport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -162,64 +218,16 @@ func TestBrokenLinksNetworkError(t *testing.T) {
 		return http.DefaultTransport.RoundTrip(req)
 	})
 
-	page := firstPage(t, crawler.Options{
+	report := analyzeReport(t, crawler.Options{
 		URL:        server.URL,
 		Depth:      1,
 		HTTPClient: client,
 	})
+	require.Len(t, report.Pages, 1)
+	require.Len(t, report.Pages[0].BrokenLinks, 1)
 
-	require.Len(t, page.BrokenLinks, 1)
-	require.Equal(t, server.URL+"/unreachable", page.BrokenLinks[0].URL)
-	require.Zero(t, page.BrokenLinks[0].StatusCode)
-	require.Contains(t, page.BrokenLinks[0].Error, "network error")
-}
-
-func TestBrokenLinkReportContainsStatusAfterRetries(t *testing.T) {
-	var failedLinkRequests atomic.Int32
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/flaky" {
-			failedLinkRequests.Add(1)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
-
-		_, _ = w.Write([]byte(`<a href="/flaky">retry me</a>`))
-	})
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-
-	data, err := crawler.Analyze(t.Context(), crawler.Options{
-		URL:        server.URL,
-		Depth:      1,
-		HTTPClient: server.Client(),
-		Retries:    2,
-	})
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
-	require.NotEmpty(t, report.Pages)
-	require.Equal(t, []crawler.BrokenLink{{
-		URL:        server.URL + "/flaky",
-		StatusCode: http.StatusServiceUnavailable,
-		Error:      http.StatusText(http.StatusServiceUnavailable),
-	}}, report.Pages[0].BrokenLinks)
-	require.Equal(t, int32(3), failedLinkRequests.Load())
-}
-
-func TestBrokenLinksContextCanceled(t *testing.T) {
-	server, ctx := newCancelServer(t)
-
-	opts := crawler.Options{URL: server.URL, Depth: 1, HTTPClient: server.Client()}
-
-	data, err := crawler.Analyze(ctx, opts)
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
-	require.NotEmpty(t, report.Pages)
-	page := report.Pages[0]
-	require.Equal(t, "ok", page.Status)
-	require.Empty(t, page.BrokenLinks)
-	require.ErrorIs(t, ctx.Err(), context.Canceled)
+	link := report.Pages[0].BrokenLinks[0]
+	require.Equal(t, server.URL+"/unreachable", link.URL)
+	require.Zero(t, link.StatusCode)
+	require.Contains(t, link.Error, "network error")
 }

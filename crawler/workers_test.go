@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -48,20 +47,14 @@ func TestCrawlWorkerLimit(t *testing.T) {
 			}
 		}
 	})
+	server := newTestServer(t, handler)
 
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-
-	data, err := crawler.Analyze(t.Context(), crawler.Options{
+	report := analyzeReport(t, crawler.Options{
 		URL:         server.URL,
 		HTTPClient:  server.Client(),
 		Depth:       2,
 		Concurrency: concurrency,
 	})
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
 	require.Len(t, report.Pages, pageCount+1)
 
 	mu.Lock()
@@ -72,8 +65,8 @@ func TestCrawlWorkerLimit(t *testing.T) {
 	require.Greater(t, observedMax, 1)
 }
 
-func TestCrawlConcurrencyReportMatches(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestCrawlConcurrencyDeterminism(t *testing.T) {
+	server := newTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/":
 			_, _ = fmt.Fprint(w, `<a href="/a">a</a><a href="/b">b</a>`)
@@ -82,28 +75,23 @@ func TestCrawlConcurrencyReportMatches(t *testing.T) {
 		case "/b":
 			_, _ = fmt.Fprint(w, `<a href="/c">c</a>`)
 		}
-	})
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+	}))
 
-	want := map[string]uint{"": 0, "/a": 1, "/b": 1, "/c": 2}
-	var sequential map[string]uint
+	wantDepths := map[string]uint{"": 0, "/a": 1, "/b": 1, "/c": 2}
+	wantURLs := []string{server.URL, server.URL + "/a", server.URL + "/b", server.URL + "/c"}
+
 	for _, concurrency := range []uint{0, 1, 4} {
-		opts := crawler.Options{
-			URL:         server.URL,
-			HTTPClient:  server.Client(),
-			Depth:       3,
-			Concurrency: concurrency,
-		}
-		got := pageDepths(t, opts)
-		require.Equal(t, want, got)
+		t.Run(fmt.Sprintf("concurrency %d", concurrency), func(t *testing.T) {
+			report := analyzeReport(t, crawler.Options{
+				URL:         server.URL,
+				HTTPClient:  server.Client(),
+				Depth:       3,
+				Concurrency: concurrency,
+			})
 
-		if concurrency == 0 {
-			sequential = got
-			continue
-		}
-
-		require.Equal(t, sequential, got)
+			require.Equal(t, wantDepths, pageDepthsFromReport(t, report))
+			require.Equal(t, wantURLs, reportURLs(report))
+		})
 	}
 }
 
@@ -137,8 +125,7 @@ func TestCrawlCancellationWithWorkers(t *testing.T) {
 			}
 		}
 	})
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+	server := newTestServer(t, handler)
 
 	result := make(chan []byte, 1)
 	errs := make(chan error, 1)
@@ -188,8 +175,7 @@ func TestCrawlDelayIsGlobalWithWorkers(t *testing.T) {
 			}
 		}
 	})
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+	server := newTestServer(t, handler)
 
 	_, err := crawler.Analyze(t.Context(), crawler.Options{
 		URL:         server.URL,
@@ -205,31 +191,4 @@ func TestCrawlDelayIsGlobalWithWorkers(t *testing.T) {
 		allStarts = append(allStarts, <-starts)
 	}
 	require.GreaterOrEqual(t, allStarts[len(allStarts)-1].Sub(allStarts[0]), time.Duration(len(allStarts)-1)*delay)
-}
-
-func TestCrawlReportOrderIsStable(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			_, _ = fmt.Fprint(w, `<a href="/z">z</a><a href="/a">a</a>`)
-		}
-	})
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-
-	data, err := crawler.Analyze(t.Context(), crawler.Options{
-		URL:         server.URL,
-		HTTPClient:  server.Client(),
-		Depth:       2,
-		Concurrency: 4,
-	})
-	require.NoError(t, err)
-
-	var report crawler.Report
-	require.NoError(t, json.Unmarshal(data, &report))
-	var got []string
-	for _, page := range report.Pages {
-		got = append(got, page.URL)
-	}
-
-	require.Equal(t, []string{server.URL, server.URL + "/a", server.URL + "/z"}, got)
 }

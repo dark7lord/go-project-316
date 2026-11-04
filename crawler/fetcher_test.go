@@ -29,32 +29,55 @@ func newTestFetcher(t *testing.T, delay time.Duration) (*fetcher, *url.URL) {
 	return &ftr, u
 }
 
-func TestFetcherFirstRequestNoWait(t *testing.T) {
-	delay := 50 * time.Millisecond
-	ftr, u := newTestFetcher(t, delay)
-	start := time.Now()
+func TestFetcherRateLimit(t *testing.T) {
+	const delay = 50 * time.Millisecond
 
-	resp, err := ftr.get(t.Context(), u)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-
-	require.Less(t, time.Since(start), delay)
-}
-
-func TestFetcherKeepsInterval(t *testing.T) {
-	delay := 50 * time.Millisecond
-	ftr, u := newTestFetcher(t, delay)
-	intervals := 4
-	minElapsed := time.Duration(intervals) * delay
-	start := time.Now()
-
-	for range intervals + 1 {
-		resp, err := ftr.get(t.Context(), u)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
+	tests := []struct {
+		name     string
+		delay    time.Duration
+		requests int
+		wantMin  time.Duration
+		wantMax  time.Duration
+	}{
+		{
+			name:     "first request is not delayed",
+			delay:    delay,
+			requests: 1,
+			wantMax:  delay,
+		},
+		{
+			name:     "keeps configured interval",
+			delay:    delay,
+			requests: 5,
+			wantMin:  4 * delay,
+		},
+		{
+			name:     "enforces minimum interval by default",
+			requests: 5,
+			wantMin:  4 * minRetryDelay,
+		},
 	}
 
-	require.GreaterOrEqual(t, time.Since(start), minElapsed)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ftr, u := newTestFetcher(t, tt.delay)
+			start := time.Now()
+
+			for range tt.requests {
+				resp, err := ftr.get(t.Context(), u)
+				require.NoError(t, err)
+				require.NoError(t, resp.Body.Close())
+			}
+
+			elapsed := time.Since(start)
+			if tt.wantMin > 0 {
+				require.GreaterOrEqual(t, elapsed, tt.wantMin)
+			}
+			if tt.wantMax > 0 {
+				require.Less(t, elapsed, tt.wantMax)
+			}
+		})
+	}
 }
 
 func TestFetcherCancelStopsWaiting(t *testing.T) {
@@ -75,17 +98,4 @@ func TestFetcherCancelStopsWaiting(t *testing.T) {
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Nil(t, resp)
 	require.Less(t, time.Since(start), time.Second)
-}
-
-func TestFetcherMinimumIntervalWithoutConfiguredDelay(t *testing.T) {
-	ftr, u := newTestFetcher(t, 0)
-	start := time.Now()
-
-	for range 5 {
-		resp, err := ftr.get(t.Context(), u)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-	}
-
-	require.GreaterOrEqual(t, time.Since(start), 4*minRetryDelay)
 }
