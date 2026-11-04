@@ -30,6 +30,37 @@ func TestBrokenLinks(t *testing.T) {
 	require.Equal(t, want, page.BrokenLinks)
 }
 
+func TestBrokenLinksWithFragmentsAreCheckedOnce(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			_, _ = w.Write([]byte(`
+				<a href="/missing#first">first</a>
+				<a href="/missing#second">second</a>
+			`))
+
+			return
+		}
+
+		requests.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	page := firstPage(t, crawler.Options{
+		URL:        server.URL,
+		Depth:      1,
+		HTTPClient: server.Client(),
+	})
+
+	require.Equal(t, []crawler.BrokenLink{{
+		URL:        server.URL + "/missing",
+		StatusCode: http.StatusNotFound,
+		Error:      http.StatusText(http.StatusNotFound),
+	}}, page.BrokenLinks)
+	require.Equal(t, int32(1), requests.Load())
+}
+
 func TestBrokenLinksNetworkError(t *testing.T) {
 	server := setupTestServer(t)
 

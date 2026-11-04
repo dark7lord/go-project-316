@@ -56,6 +56,9 @@ func (crw *crawler) checkLinks(
 			continue
 		}
 
+		absURL.Fragment = ""
+		absURL.RawFragment = ""
+
 		key := absURL.String()
 		if checked[key] {
 			continue
