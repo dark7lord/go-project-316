@@ -70,16 +70,16 @@ func TestExtractAssets(t *testing.T) {
 	}
 
 	require.Equal(t, []Asset{
-		{URL: "https://example.test/css/site.css", Type: assetTypeStyle},
-		{URL: "https://cdn.example.test/app.js", Type: assetTypeScript},
 		{URL: "https://example.test/images/logo.png", Type: assetTypeImage},
+		{URL: "https://cdn.example.test/app.js", Type: assetTypeScript},
+		{URL: "https://example.test/css/site.css", Type: assetTypeStyle},
 	}, gotAssets)
 }
 
-func TestAssetJSONIncludesAllFields(t *testing.T) {
+func TestAssetJSONOmitsEmptyError(t *testing.T) {
 	data, err := json.Marshal(Asset{})
 	require.NoError(t, err)
-	require.JSONEq(t, `{"url":"","type":"","status_code":0,"size_bytes":0,"error":""}`, string(data))
+	require.JSONEq(t, `{"url":"","type":"","status_code":0,"size_bytes":0}`, string(data))
 }
 
 func TestPageAssetsIncludeStatusAndSize(t *testing.T) {

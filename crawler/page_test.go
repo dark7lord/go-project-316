@@ -68,6 +68,16 @@ func TestPageNetworkError(t *testing.T) {
 	require.Zero(t, page.HTTPStatus)
 	require.Equal(t, "error", page.Status)
 	require.NotEmpty(t, page.Error)
+	require.Nil(t, page.BrokenLinks)
+	require.Nil(t, page.Assets)
+
+	data, err := json.Marshal(page)
+	require.NoError(t, err)
+
+	var got map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(data, &got))
+	require.JSONEq(t, "null", string(got["broken_links"]))
+	require.JSONEq(t, "null", string(got["assets"]))
 }
 
 func TestPageTimeout(t *testing.T) {

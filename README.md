@@ -51,13 +51,14 @@ configured on the supplied HTTP client takes precedence.
 
 The library returns a JSON object with the crawl's `root_url`, configured
 `depth`, UTC `generated_at` timestamp, and the list of `pages`. Each page
-includes its URL and depth, HTTP status, crawl status and error, SEO results,
-broken links, assets, and UTC `discovered_at` timestamp.
+includes its URL and depth, HTTP status, crawl status, optional error, SEO
+results, broken links, assets, and UTC `discovered_at` timestamp.
 
-All documented keys are present. Empty `pages`, `broken_links`, and `assets`
-fields are empty arrays. Timestamps use RFC3339, an ISO8601 format. For broken
-links, HTTP errors include the status text in `error`; transport errors have a
-zero `status_code` and the transport error message.
+An `error` key is included only when a page or asset has an error. Empty
+collections on successfully fetched pages are empty arrays; collections on
+pages that could not be fetched are `null`. Timestamps use RFC3339, an ISO8601
+format. For broken links, HTTP errors include the status text in `error`;
+transport errors have a zero `status_code` and the transport error message.
 
 ```json
 {
@@ -70,7 +71,6 @@ zero `status_code` and the transport error message.
             "depth": 0,
             "http_status": 200,
             "status": "ok",
-            "error": "",
             "seo": {
                 "has_title": true,
                 "title": "Example title",
@@ -90,8 +90,7 @@ zero `status_code` and the transport error message.
                     "url": "https://example.com/static/logo.png",
                     "type": "image",
                     "status_code": 200,
-                    "size_bytes": 12345,
-                    "error": ""
+                    "size_bytes": 12345
                 }
             ],
             "discovered_at": "2024-06-01T12:34:56Z"
@@ -111,11 +110,12 @@ writes the JSON report without extra text and terminates it with a newline.
 
 ## Assets
 
-Each page report includes an `assets` array for images, external scripts, and
-stylesheets referenced by the page. Asset entries contain `url`, `type`,
-`status_code`, `size_bytes`, and `error`. The crawler uses `Content-Length`
-when available and otherwise counts bytes while reading the response body.
-Asset requests share the crawl's retries and request interval.
+Each successfully fetched page report includes an `assets` array for images,
+external scripts, and stylesheets referenced by the page, sorted by type
+(image, script, style). Asset entries contain `url`, `type`, `status_code`,
+`size_bytes`, and `error` when an error occurred. The crawler uses
+`Content-Length` when available and otherwise counts bytes while reading the
+response body. Asset requests share the crawl's retries and request interval.
 
 Duplicate asset URLs are removed within each page, and the fetched result is
 shared across pages during the same crawl.

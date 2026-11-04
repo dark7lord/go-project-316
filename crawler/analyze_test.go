@@ -91,7 +91,6 @@ func TestAnalyzeJSONMatchesExampleWithIndenting(t *testing.T) {
 				"depth": 0,
 				"http_status": 200,
 				"status": "ok",
-				"error": "",
 				"seo": {
 					"has_title": true,
 					"title": "Example title",
@@ -108,8 +107,7 @@ func TestAnalyzeJSONMatchesExampleWithIndenting(t *testing.T) {
 					"url": %q,
 					"type": "image",
 					"status_code": 200,
-					"size_bytes": 12,
-					"error": ""
+					"size_bytes": 12
 				}],
 				"discovered_at": %q
 			}]

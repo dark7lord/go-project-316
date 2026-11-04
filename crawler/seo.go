@@ -17,6 +17,11 @@ type SEOResult struct {
 
 func extractSEO(doc *goquery.Document) SEOResult {
 	title := doc.Find("head > title").First()
+	if title.Length() == 0 {
+		title = doc.Find("title").FilterFunction(func(_ int, selection *goquery.Selection) bool {
+			return selection.Closest("svg").Length() == 0
+		}).First()
+	}
 	desc := doc.Find(`meta[name="description"]`).First()
 	content, _ := desc.Attr("content")
 

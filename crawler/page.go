@@ -21,7 +21,7 @@ type Page struct {
 	Depth        uint         `json:"depth"`
 	HTTPStatus   int          `json:"http_status"`
 	Status       string       `json:"status"`
-	Error        string       `json:"error"`
+	Error        string       `json:"error,omitempty"`
 	SEO          SEOResult    `json:"seo"`
 	BrokenLinks  []BrokenLink `json:"broken_links"`
 	Assets       []Asset      `json:"assets"`
@@ -32,8 +32,6 @@ func newPage(u *url.URL, depth uint) Page {
 	return Page{
 		URL:          u.String(),
 		Depth:        depth,
-		BrokenLinks:  []BrokenLink{},
-		Assets:       []Asset{},
 		DiscoveredAt: time.Now().UTC(),
 	}
 }

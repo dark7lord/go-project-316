@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/PuerkitoBio/goquery"
@@ -78,4 +79,16 @@ func TestExtractSEO(t *testing.T) {
 			require.Equal(t, tt.want, extractSEO(doc))
 		})
 	}
+}
+
+func TestExtractSEOFindsFeedTitleOutsideHead(t *testing.T) {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(
+		`<?xml version="1.0"?><rss><channel><title>Crawler Blog</title></channel></rss>`,
+	))
+	require.NoError(t, err)
+
+	require.Equal(t, SEOResult{
+		HasTitle: true,
+		Title:    "Crawler Blog",
+	}, extractSEO(doc))
 }

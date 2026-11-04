@@ -27,7 +27,7 @@ type Asset struct {
 	Type       AssetType `json:"type"`
 	StatusCode int       `json:"status_code"`
 	SizeBytes  int64     `json:"size_bytes"`
-	Error      string    `json:"error"`
+	Error      string    `json:"error,omitempty"`
 }
 
 type assetReference struct {
@@ -189,6 +189,10 @@ func extractAssets(doc *goquery.Document, pageURL *url.URL) []assetReference {
 		}
 		seen[key] = struct{}{}
 		assets = append(assets, reference)
+	})
+
+	slices.SortStableFunc(assets, func(a, b assetReference) int {
+		return strings.Compare(string(a.Type), string(b.Type))
 	})
 
 	return assets
