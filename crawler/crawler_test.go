@@ -18,20 +18,10 @@ func TestCrawlDepth(t *testing.T) {
 		want  map[string]uint
 	}{
 		{
-			name:  "depth 0",
-			depth: 0,
-			want: map[string]uint{
-				"/": 0,
-			},
-		},
-		{
 			name:  "depth 1",
 			depth: 1,
 			want: map[string]uint{
-				"/":              0,
-				"/about.html":    1,
-				"/contacts.html": 1,
-				"/not-found":     1,
+				"/": 0,
 			},
 		},
 		{
@@ -42,7 +32,6 @@ func TestCrawlDepth(t *testing.T) {
 				"/about.html":    1,
 				"/contacts.html": 1,
 				"/not-found":     1,
-				"/team.html":     2,
 			},
 		},
 		{

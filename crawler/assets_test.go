@@ -109,6 +109,7 @@ func TestPageAssetsIncludeStatusAndSize(t *testing.T) {
 
 	data, err := Analyze(t.Context(), Options{
 		URL:        server.URL,
+		Depth:      1,
 		HTTPClient: server.Client(),
 	})
 	require.NoError(t, err)
@@ -155,6 +156,7 @@ func TestAssetSizeWithoutContentLength(t *testing.T) {
 
 	data, err := Analyze(t.Context(), Options{
 		URL:        server.URL,
+		Depth:      1,
 		HTTPClient: server.Client(),
 	})
 	require.NoError(t, err)
@@ -176,7 +178,7 @@ func TestPageWithoutAssetsHasEmptyArray(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	data, err := Analyze(t.Context(), Options{URL: server.URL, HTTPClient: server.Client()})
+	data, err := Analyze(t.Context(), Options{URL: server.URL, Depth: 1, HTTPClient: server.Client()})
 	require.NoError(t, err)
 
 	var report Report
@@ -301,7 +303,7 @@ func TestAssetSharedAcrossPagesIsRequestedOnce(t *testing.T) {
 		data, err := Analyze(t.Context(), Options{
 			URL:         server.URL,
 			HTTPClient:  server.Client(),
-			Depth:       1,
+			Depth:       2,
 			Concurrency: 3,
 		})
 		done <- result{data: data, err: err}

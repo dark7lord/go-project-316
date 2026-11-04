@@ -18,6 +18,7 @@ func TestBrokenLinks(t *testing.T) {
 
 	page := firstPage(t, crawler.Options{
 		URL:        server.URL + "/",
+		Depth:      1,
 		HTTPClient: server.Client(),
 	})
 
@@ -34,6 +35,7 @@ func TestBrokenLinksNetworkError(t *testing.T) {
 
 	page := firstPage(t, crawler.Options{
 		URL:        server.URL + "/dead-link.html",
+		Depth:      1,
 		HTTPClient: server.Client(),
 	})
 
@@ -59,6 +61,7 @@ func TestBrokenLinkReportContainsStatusAfterRetries(t *testing.T) {
 
 	data, err := crawler.Analyze(t.Context(), crawler.Options{
 		URL:        server.URL,
+		Depth:      1,
 		HTTPClient: server.Client(),
 		Retries:    2,
 	})
@@ -78,7 +81,7 @@ func TestBrokenLinkReportContainsStatusAfterRetries(t *testing.T) {
 func TestBrokenLinksContextCanceled(t *testing.T) {
 	server, ctx := newCancelServer(t)
 
-	opts := crawler.Options{URL: server.URL, HTTPClient: server.Client()}
+	opts := crawler.Options{URL: server.URL, Depth: 1, HTTPClient: server.Client()}
 
 	data, err := crawler.Analyze(ctx, opts)
 	require.NoError(t, err)

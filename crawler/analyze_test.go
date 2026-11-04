@@ -18,11 +18,21 @@ func TestAnalyzeInvalidInput(t *testing.T) {
 	server := setupTestServer(t)
 
 	ctx := t.Context()
-	_, err := crawler.Analyze(ctx, crawler.Options{URL: server.URL})
+	_, err := crawler.Analyze(ctx, crawler.Options{URL: server.URL, Depth: 1})
 	require.Error(t, err, "nil http client")
 
-	_, err = crawler.Analyze(ctx, crawler.Options{URL: "ftp://x", HTTPClient: server.Client()})
+	_, err = crawler.Analyze(ctx, crawler.Options{URL: "ftp://x", Depth: 1, HTTPClient: server.Client()})
 	require.ErrorIs(t, err, crawler.ErrInvalidURL)
+}
+
+func TestAnalyzeRejectsZeroDepth(t *testing.T) {
+	server := setupTestServer(t)
+
+	_, err := crawler.Analyze(t.Context(), crawler.Options{
+		URL:        server.URL,
+		HTTPClient: server.Client(),
+	})
+	require.ErrorIs(t, err, crawler.ErrInvalidDepth)
 }
 
 func TestAnalyzeCanceledContext(t *testing.T) {
@@ -31,7 +41,7 @@ func TestAnalyzeCanceledContext(t *testing.T) {
 	canceledCtx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	opts := crawler.Options{URL: server.URL, HTTPClient: server.Client()}
+	opts := crawler.Options{URL: server.URL, Depth: 1, HTTPClient: server.Client()}
 	data, err := crawler.Analyze(canceledCtx, opts)
 	require.NoError(t, err)
 
@@ -61,7 +71,7 @@ func TestAnalyzeJSONMatchesExampleWithIndenting(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	options := crawler.Options{URL: server.URL, HTTPClient: server.Client()}
+	options := crawler.Options{URL: server.URL, Depth: 1, HTTPClient: server.Client()}
 	unindentedJSON, err := crawler.Analyze(t.Context(), options)
 	require.NoError(t, err)
 
@@ -84,7 +94,7 @@ func TestAnalyzeJSONMatchesExampleWithIndenting(t *testing.T) {
 	wantJSON := func(report crawler.Report) string {
 		return fmt.Sprintf(`{
 			"root_url": %q,
-			"depth": 0,
+			"depth": 1,
 			"generated_at": %q,
 			"pages": [{
 				"url": %q,

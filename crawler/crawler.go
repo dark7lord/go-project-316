@@ -89,7 +89,7 @@ func (crw *crawler) nextLevel(queue []foundURL) []foundURL {
 	level := make([]foundURL, 0, len(queue))
 	for _, candidate := range queue {
 		key := candidate.URL.JoinPath().String()
-		if candidate.URL.Host != crw.host || crw.visited[key] || candidate.depth > crw.depth {
+		if candidate.URL.Host != crw.host || crw.visited[key] || candidate.depth >= crw.depth {
 			continue
 		}
 

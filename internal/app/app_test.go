@@ -39,6 +39,7 @@ func TestRun(t *testing.T) {
 		{"version", []string{"version"}, 0, "1.0.0", ""},
 		{"too many args", []string{"a.com", "b.com"}, 1, "", "expected 1 url"},
 		{"invalid flag value", []string{"--depth", "abc", "a.com"}, 1, "", "invalid value"},
+		{"zero depth", []string{"--depth", "0", "https://example.com"}, 1, "", "analyze error: depth must be greater than 0"},
 		{"invalid url", []string{"ftp://a.com"}, 1, "", "invalid url"},
 	}
 
@@ -102,6 +103,47 @@ func TestRunPrintsReport(t *testing.T) {
 	report.Pages[0].DiscoveredAt = time.Time{}
 	libraryReport.Pages[0].DiscoveredAt = time.Time{}
 	require.Equal(t, libraryReport, report)
+}
+
+func TestRunDepthCountsLevelsIncludingRoot(t *testing.T) {
+	tests := []struct {
+		depth     string
+		wantPaths []string
+	}{
+		{depth: "1", wantPaths: []string{"/"}},
+		{depth: "2", wantPaths: []string{"/", "/child"}},
+	}
+
+	for _, tt := range tests {
+		t.Run("depth "+tt.depth, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/" {
+					_, _ = w.Write([]byte(`<a href="/child">child</a>`))
+					return
+				}
+
+				_, _ = w.Write([]byte(`<a href="/grandchild">grandchild</a>`))
+			}))
+			t.Cleanup(server.Close)
+
+			code, stdout, stderr := runApp("--depth", tt.depth, server.URL)
+			require.Equal(t, 0, code, stderr)
+
+			var report crawler.Report
+			require.NoError(t, json.Unmarshal([]byte(stdout), &report))
+			require.Equal(t, uint(len(tt.wantPaths)), uint(report.Depth))
+			require.Len(t, report.Pages, len(tt.wantPaths))
+
+			gotPaths := make([]string, len(report.Pages))
+			for i, page := range report.Pages {
+				gotPaths[i] = strings.TrimPrefix(page.URL, server.URL)
+				if gotPaths[i] == "" {
+					gotPaths[i] = "/"
+				}
+			}
+			require.Equal(t, tt.wantPaths, gotPaths)
+		})
+	}
 }
 
 func TestIndentJSONCanBeDisabled(t *testing.T) {

@@ -3,13 +3,18 @@ package crawler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 )
 
+// ErrInvalidDepth is returned when the requested crawl depth is zero.
+var ErrInvalidDepth = errors.New("depth must be greater than 0")
+
 // Options configures a crawl run.
 type Options struct {
-	URL     string
+	URL string
+	// Depth is the number of page levels to visit, including the start page.
 	Depth   uint
 	Retries uint
 	// Delay is the minimal pause between the starts of two requests,
@@ -26,6 +31,10 @@ type Options struct {
 
 // Analyze crawls a website and returns a report about its structure.
 func Analyze(ctx context.Context, opts Options) (data []byte, err error) {
+	if opts.Depth == 0 {
+		return nil, ErrInvalidDepth
+	}
+
 	crw, err := newCrawler(opts)
 	if err != nil {
 		return nil, err

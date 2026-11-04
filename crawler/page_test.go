@@ -47,6 +47,7 @@ func TestPageStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			page := firstPage(t, crawler.Options{
 				URL:        server.URL + tt.path,
+				Depth:      1,
 				HTTPClient: server.Client(),
 			})
 
@@ -63,7 +64,7 @@ func TestPageNetworkError(t *testing.T) {
 	client := server.Client()
 	server.Close()
 
-	page := firstPage(t, crawler.Options{URL: url, HTTPClient: client})
+	page := firstPage(t, crawler.Options{URL: url, Depth: 1, HTTPClient: client})
 
 	require.Zero(t, page.HTTPStatus)
 	require.Equal(t, "error", page.Status)
@@ -87,6 +88,7 @@ func TestPageTimeout(t *testing.T) {
 
 	page := firstPage(t, crawler.Options{
 		URL:        url,
+		Depth:      1,
 		HTTPClient: client,
 		Timeout:    50 * time.Millisecond,
 	})
@@ -108,6 +110,7 @@ func TestPageTimeoutWhileReadingBody(t *testing.T) {
 
 	page := firstPage(t, crawler.Options{
 		URL:        server.URL,
+		Depth:      1,
 		HTTPClient: server.Client(),
 		Timeout:    50 * time.Millisecond,
 	})
@@ -124,6 +127,7 @@ func TestPageTimeoutUsesShorterHTTPClientLimit(t *testing.T) {
 
 	page := firstPage(t, crawler.Options{
 		URL:        server.URL + "/slow",
+		Depth:      1,
 		HTTPClient: client,
 		Timeout:    200 * time.Millisecond,
 	})
@@ -141,6 +145,7 @@ func TestPageTimeoutZeroPreservesHTTPClientLimit(t *testing.T) {
 
 	page := firstPage(t, crawler.Options{
 		URL:        server.URL + "/slow",
+		Depth:      1,
 		HTTPClient: client,
 	})
 
@@ -160,6 +165,7 @@ func TestPageRetriesUseTimeoutPerAttempt(t *testing.T) {
 
 	page := firstPage(t, crawler.Options{
 		URL:        server.URL,
+		Depth:      1,
 		HTTPClient: server.Client(),
 		Timeout:    80 * time.Millisecond,
 		Retries:    2,
@@ -175,6 +181,7 @@ func TestPageContextCanceled(t *testing.T) {
 
 	opts := crawler.Options{
 		URL:        server.URL + "/cancel",
+		Depth:      1,
 		HTTPClient: server.Client(),
 	}
 

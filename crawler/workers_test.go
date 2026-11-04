@@ -55,7 +55,7 @@ func TestCrawlWorkerLimit(t *testing.T) {
 	data, err := crawler.Analyze(t.Context(), crawler.Options{
 		URL:         server.URL,
 		HTTPClient:  server.Client(),
-		Depth:       1,
+		Depth:       2,
 		Concurrency: concurrency,
 	})
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestCrawlConcurrencyReportMatches(t *testing.T) {
 		opts := crawler.Options{
 			URL:         server.URL,
 			HTTPClient:  server.Client(),
-			Depth:       2,
+			Depth:       3,
 			Concurrency: concurrency,
 		}
 		got := pageDepths(t, opts)
@@ -146,7 +146,7 @@ func TestCrawlCancellationWithWorkers(t *testing.T) {
 		data, err := crawler.Analyze(ctx, crawler.Options{
 			URL:         server.URL,
 			HTTPClient:  server.Client(),
-			Depth:       1,
+			Depth:       2,
 			Concurrency: 4,
 		})
 		result <- data
@@ -194,7 +194,7 @@ func TestCrawlDelayIsGlobalWithWorkers(t *testing.T) {
 	_, err := crawler.Analyze(t.Context(), crawler.Options{
 		URL:         server.URL,
 		HTTPClient:  server.Client(),
-		Depth:       1,
+		Depth:       2,
 		Concurrency: 4,
 		Delay:       delay,
 	})
@@ -219,7 +219,7 @@ func TestCrawlReportOrderIsStable(t *testing.T) {
 	data, err := crawler.Analyze(t.Context(), crawler.Options{
 		URL:         server.URL,
 		HTTPClient:  server.Client(),
-		Depth:       1,
+		Depth:       2,
 		Concurrency: 4,
 	})
 	require.NoError(t, err)
